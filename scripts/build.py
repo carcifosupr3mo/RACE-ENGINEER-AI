@@ -23,8 +23,30 @@ if "--skip-tests" not in sys.argv:
     run([sys.executable, "-m", "pytest", "tests"], root / "backend")
 run([sys.executable, "-m", "PyInstaller", "packaging/race_engineer.spec", "--noconfirm", "--distpath", "dist", "--workpath", "build"])
 out = root / "dist" / "RaceEngineerAI"
-for bat in (root / "scripts" / "windows").glob("*.bat"):          # verification tools next to the exe (used on the Windows PC)
+for bat in [*(root / "scripts" / "windows").glob("*.bat"), *(root / "scripts" / "windows").glob("*.ps1")]:          # verification tools next to the exe (used on the Windows PC)
     shutil.copy2(bat, out / bat.name)
+(out / "docs").mkdir(exist_ok=True)
+for d in ("README.md", "docs/VALIDATION.md", "docs/INSTALLATION.md", "docs/AI-PROVIDERS.md", "docs/LMU-INTEGRATION.md"):
+    shutil.copy2(root / d, out / "docs" / Path(d).name)
+shutil.copy2(root / "packaging" / "icon.ico", out / "icon.ico")
+
+
+def secret_scan(folder: Path) -> list[str]:
+    """Fail the build if any text file in the bundle looks like it contains an API key or a personal path."""
+    import re
+    pat = re.compile(rb"(nvapi-[A-Za-z0-9_\-]{20,}|gsk_[A-Za-z0-9]{20,}|sk-[A-Za-z0-9_\-]{30,}|ghp_[A-Za-z0-9]{30,}|xox[bp]-[A-Za-z0-9-]{20,})")
+    hits = []
+    for f in folder.rglob("*"):
+        if f.is_file() and f.suffix.lower() in (".py", ".json", ".txt", ".md", ".bat", ".ps1", ".js", ".html", ".cfg", ".toml", ".yml", ".sqlite"):
+            if pat.search(f.read_bytes()):
+                hits.append(str(f.relative_to(folder)))
+    return hits
+
+
+bad = secret_scan(out)
+print("secret scan:", "CLEAN" if not bad else bad)
+if bad:
+    raise SystemExit("possible secrets in bundle: " + ", ".join(bad))
 if "--smoke" in sys.argv:                                          # a package that fails its smoke test is never archived
     run([sys.executable, "scripts/smoke_bundle.py", str(out)])
 archive = shutil.make_archive(str(root / "dist" / f"RaceEngineerAI-{sys.platform}"), "zip", out)

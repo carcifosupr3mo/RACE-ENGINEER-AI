@@ -105,6 +105,13 @@ def cmd_verify(args) -> int:
 
 def cmd_duckdb_report(args) -> int:
     from .importers.diagnostic_report import report
+    if not args.path:                      # no argument: list the native LMU telemetry files found (read-only scan)
+        inst = find_install()
+        files = sorted(inst.duckdb_files, reverse=True)
+        print(f"{len(files)} .duckdb file(s) found in {inst.telemetry_dir}")
+        for f in files[:30]:
+            print(" ", f)
+        return 0 if files else 2
     rep, md = report(args.path, out_dir=args.out)
     print(f"ok={rep['ok']} channels={len(rep['channels'])} events={len(rep['events'])} g_force={rep['g_force_analysis'].get('verdict')}")
     print("original file modified:", rep["original_modified"], "\nReport:", md)
@@ -166,7 +173,7 @@ def main(argv=None) -> int:
     p = sub.add_parser("inspect-duckdb"); p.add_argument("path"); p.set_defaults(fn=cmd_inspect)
     p = sub.add_parser("layout"); p.set_defaults(fn=cmd_layout)
     p = sub.add_parser("duckdb-report", help="local schema/quality report of a real LMU .duckdb (nothing uploaded)")
-    p.add_argument("path"); p.add_argument("--out"); p.set_defaults(fn=cmd_duckdb_report)
+    p.add_argument("path", nargs="?"); p.add_argument("--out"); p.set_defaults(fn=cmd_duckdb_report)
     p = sub.add_parser("setup-inspect", help="inspect a real LMU setup file (or list the .svm files found); keeps a verbatim copy")
     p.add_argument("path", nargs="?"); p.add_argument("--out"); p.set_defaults(fn=cmd_setup_inspect)
     p = sub.add_parser("ai-test", help="one real minimal request per configured FREE provider route (keys from env/Credential Manager)")

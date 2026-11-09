@@ -58,6 +58,8 @@ def main():
     md = list(out.glob("*.md"))
     rec("cli verify-lmu produces a report and does NOT claim verification without LMU",
         bool(md) and "REAL LMU VERIFIED" not in md[0].read_text(encoding="utf-8"), r.stdout[-200:] + r.stderr[-200:])
+    r = run(["duckdb-report"]); rec("cli duckdb-report (no arg) lists files or says none, no crash", r.returncode in (0, 2) and "Traceback" not in r.stderr, r.stderr[-200:])
+    r = run(["setup-inspect"]); rec("cli setup-inspect (no arg) lists files or says none, no crash", r.returncode in (0, 2) and "Traceback" not in r.stderr, r.stderr[-200:])
     r = run(["ai-test", "--no-send"]); rec("cli ai-test --no-send (no keys: nothing sent)", r.returncode in (0, 2) and '"routes"' in r.stdout, r.stderr[-200:])
     r = run(["endurance-sim", "--hours", "1", "--out", str(data / "sim")], 300); rec("cli endurance-sim 1h", r.returncode == 0, r.stdout[-200:] + r.stderr[-200:])
 

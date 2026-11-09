@@ -21,6 +21,7 @@ ArchitecturesInstallIn64BitMode=x64compatible
 [Files]
 Source: "..\dist\RaceEngineerAI\*"; DestDir: "{app}"; Flags: recursesubdirs ignoreversion
 Source: "..\scripts\windows\*.bat"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\scripts\windows\*.ps1"; DestDir: "{app}"; Flags: ignoreversion
 [Icons]
 Name: "{group}\Race Engineer AI"; Filename: "{app}\RaceEngineerAI.exe"
 Name: "{group}\Verifica LMU reale"; Filename: "{app}\VERIFICA_LMU.bat"
