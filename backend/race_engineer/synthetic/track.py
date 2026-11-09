@@ -45,6 +45,7 @@ class Scenario:
     drop_prob: float = 0.0               # probability a frame is not published (missing samples)
     incomplete_after_lap: int | None = None  # stop producing frames mid-lap after this lap
     unavailable: tuple[str, ...] = ()    # channels forced to None (telemetry incompleteness)
+    lap_overrides: dict[int, str] = field(default_factory=dict)   # lap -> scenario name for that lap only
     seed: int = 1
 
 
@@ -56,6 +57,7 @@ SCENARIOS: dict[str, Scenario] = {
     "late_throttle": Scenario("late_throttle", throttle_delay_m={3: 35.0}),
     "missing_samples": Scenario("missing_samples", drop_prob=0.15),
     "incomplete": Scenario("incomplete", incomplete_after_lap=2),
+    "mixed": Scenario("mixed", lap_overrides={2: "early_brake", 3: "late_throttle"}),   # one session, different laps
     "no_tyre_data": Scenario("no_tyre_data", unavailable=tuple(
         f"tyre_{w}_{c}" for w in ("fl", "fr", "rl", "rr") for c in ("pressure_kpa", "wear"))),
 }
@@ -91,8 +93,9 @@ def frames(track: SyntheticTrack, sc: Scenario, laps: int = 3, hz: int = 100) ->
     """Yield one dict per simulation tick (published or not: see ``published`` flag)."""
     rng = np.random.default_rng(sc.seed)
     ds = 1.0
-    vref = reference_profile(track, sc, ds)
-    n = len(vref)
+    vref_default = reference_profile(track, sc, ds)
+    vrefs = {lap_no: reference_profile(track, SCENARIOS[name], ds) for lap_no, name in sc.lap_overrides.items()}
+    n = len(vref_default)
     dt = 1.0 / hz
     s_total = 0.0
     t = 0.0
@@ -103,7 +106,7 @@ def frames(track: SyntheticTrack, sc: Scenario, laps: int = 3, hz: int = 100) ->
     last = -1.0
     s1 = s2 = 0.0
     sec_idx = 1
-    v = float(vref[0])
+    v = float(vref_default[0])
     tyre_temp = 70.0
     brake_temp = 150.0
     total = laps * track.length_m
@@ -111,6 +114,7 @@ def frames(track: SyntheticTrack, sc: Scenario, laps: int = 3, hz: int = 100) ->
     while s_total < total:
         s = s_total % track.length_m
         i = int(s / ds) % n
+        vref = vrefs.get(lap, vref_default)
         v_next = float(vref[(i + 1) % n])
         a = (v_next * v_next - v * v) / (2 * ds)  # dv/dt = v dv/ds
         v = float(vref[i])

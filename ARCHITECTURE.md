@@ -29,8 +29,7 @@ Un solo backend (Python) per web e desktop; la shell desktop PySide6 (Fase 8) ca
 | `api/` | FastAPI, WebSocket `/ws/live`, UI diagnostica statica |
 
 ## Decisioni e deviazioni dalla proposta (motivate)
-1. **UI Fase 1 in HTML/JS statico**, non React/Vite: la Fase 1 richiede un cruscotto diagnostico; introdurre
-   toolchain Node senza grafici da mostrare sarebbe una dipendenza inutile. React+TS+Vite+Plotly arrivano in Fase 3.
+1. **UI**: la pagina diagnostica statica (`/diag`) resta per la Fase 1; l'app React 18 + TS + Vite + `plotly.js-basic-dist-min` (`frontend/`) è compilata in `backend/race_engineer/api/webdist` e servita a `/app/` (così `serve` non richiede Node). Si usa Plotly direttamente senza wrapper React.
 2. **Lettura Windows con `ctypes`** (`OpenFileMappingW`) invece di `mmap(tagname)`: non crea mappature vuote e garantisce sola lettura.
 3. **Inserimenti DuckDB via NDJSON + `read_json`**: misurato ~40× più veloce di `executemany` (≈27k vs ≈650 righe/s);
    `executemany` non reggeva nemmeno 100 Hz con 73 colonne in raffiche.

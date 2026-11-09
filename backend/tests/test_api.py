@@ -34,7 +34,8 @@ def test_status_live_and_sessions(live, catalog):
     assert c.get("/api/sessions").json()[0]["is_synthetic"] == 1
     assert c.get("/api/layout").json()["verified_against_real_lmu"] is False
     assert "SYNTHETIC" in c.get("/api/diagnostics/report").json()["verdict"]
-    assert "Race Engineer" in c.get("/").text
+    assert "Race Engineer" in c.get("/diag").text
+    assert c.get("/", follow_redirects=False).status_code in (200, 307)
 
 
 def test_foreign_host_header_is_rejected(live, catalog):

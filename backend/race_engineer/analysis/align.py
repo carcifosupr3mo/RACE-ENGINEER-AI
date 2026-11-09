@@ -7,7 +7,7 @@ import numpy as np
 
 from .laps import Lap, SessionData
 
-CHANNELS = ["speed_kmh", "throttle", "brake", "steering", "rpm", "gear"]
+CHANNELS = ["speed_kmh", "throttle", "brake", "steering", "rpm", "gear", "pos_x_m", "pos_z_m"]
 
 
 @dataclass

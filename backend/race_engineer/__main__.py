@@ -109,7 +109,7 @@ def main(argv=None) -> int:
         p = sub.add_parser(name)
         p.add_argument("--shm-path", help="read this file instead of the OS mapping (Wine bridge, tests)")
         p.add_argument("--synthetic", choices=["constant", "slower", "early_brake", "late_brake", "late_throttle",
-                                               "missing_samples", "incomplete", "no_tyre_data"],
+                                               "missing_samples", "incomplete", "no_tyre_data", "mixed"],
                        help="use the SYNTHETIC fake game (never real LMU data)")
         p.add_argument("--laps", type=int, default=3, help="laps of the synthetic session")
         if name == "serve":

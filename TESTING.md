@@ -1,5 +1,7 @@
 # TESTING
-`cd backend && python -m pytest tests` — 52 test, ~9 s. UI: `node scripts/ui_smoke.js [url] [png]` (Playwright, richiede server avviato).
+`cd backend && python -m pytest tests` — 68 test, ~30 s. Frontend: `cd frontend && npm test` (vitest, 4) e, con backend avviato su dati sintetici
+(`RACE_ENGINEER_DATA=<dir> python scripts/seed_synthetic.py mixed`, poi `python -m race_engineer serve --synthetic constant --laps 30`),
+`NODE_PATH=$(npm root -g) node frontend/e2e/e2e.cjs http://127.0.0.1:8765 out.png` (Playwright, 11 controlli: banner sintetico, 7 grafici, mappa, cursore sincronizzato, osservazioni attese, nessun errore console).
 
 | Area | File | Natura dei dati |
 |---|---|---|
@@ -9,9 +11,10 @@
 | Acquisizione, stati, riconnessione, perdita connessione, campioni mancanti (conteggio esatto), sessioni incomplete, riavvio sessione, segregazione sintetico | `test_engine.py` | sintetici |
 | DB: migrazioni, recupero, backup, round-trip, **SIGKILL**, coda piena non bloccante | `test_storage.py` | sintetici |
 | Import DuckDB, originale intatto (hash), sola lettura, canali mancanti/troncati, scoperta Steam, report, drift header | `test_import_discovery_diag.py` | sintetici/fixture |
+| Analisi: giri, allineamento, curve, confronto, API, import | `test_analysis.py` | sintetici |
 | API, guardia Host/Origin, token LAN, WS, restrizione percorsi | `test_api.py` | sintetici |
 
 ## Non ancora testato / non testabile qui
 Acquisizione reale LMU; backend Windows `OpenFileMappingW`; file DuckDB reali; rilevamento processo su Windows;
-packaging (Fase 9); test grafici/frontend React (Fase 3); AI (Fase 4); allineamento giri e analisi (Fase 3).
+packaging (Fase 9); AI (Fase 4). Analisi e frontend: solo su dati sintetici.
 **I dati sintetici non dimostrano l'integrazione con LMU.**

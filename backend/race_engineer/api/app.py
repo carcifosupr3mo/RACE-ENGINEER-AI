@@ -252,8 +252,19 @@ def create_app(engine: AcquisitionEngine, catalog: Catalog, *, lan_enabled: bool
 
     app.mount("/static", StaticFiles(directory=STATIC), name="static")
 
+    dist = Path(__file__).parent / "webdist"
+    if dist.is_dir():
+        app.mount("/app", StaticFiles(directory=dist, html=True), name="webapp")
+
+    @app.get("/diag")
+    def diag():
+        return FileResponse(STATIC / "index.html")
+
     @app.get("/")
     def index():
+        if dist.is_dir():
+            from fastapi.responses import RedirectResponse
+            return RedirectResponse("/app/")
         return FileResponse(STATIC / "index.html")
 
     return app

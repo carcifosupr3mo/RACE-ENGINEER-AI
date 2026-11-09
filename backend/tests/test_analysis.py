@@ -214,3 +214,16 @@ def test_import_rejects_files_without_laps(tmp_path):
     src = build(tmp_path / "x.duckdb", drop_channels=("Lap Dist",))
     with pytest.raises(ValueError):
         import_lmu_duckdb(src, Catalog(tmp_path / "c.sqlite"), tmp_path)
+
+
+def test_mixed_session_findings_per_lap(tpf):
+    sd, laps = record(tpf, "mixed", laps=4)
+    ref = align_lap(sd, laps[0])
+    cs = detect_corners(ref)
+    r2 = compare(align_lap(sd, laps[1]), ref, cs)
+    r3 = compare(align_lap(sd, laps[2]), ref, cs)
+    assert ("early_braking", "P2") in types(r2) and not any(t == "late_throttle" for t, _ in types(r2))
+    assert ("late_throttle", "P3") in types(r3) and not any(t == "early_braking" for t, _ in types(r3))
+    cons = consistency([align_lap(sd, l) for l in laps[:3]], cs)
+    p2 = next(c for c in cons if c["corner"] == "P2")
+    assert p2["brake_start_std_m"] > 10          # inconsistency across laps is measured, not asserted

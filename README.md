@@ -3,7 +3,7 @@
 Ingegnere di pista virtuale per **Le Mans Ultimate (LMU)**: acquisisce la telemetria, la archivia, la analizza e
 (nelle fasi successive) risponde con consigli verificabili. Qualità dei dati prima dell'estetica; ogni numero ha una provenienza.
 
-**Stato: Fase 0 completata, Fase 1 implementata e verificata con dati SINTETICI. L'acquisizione da LMU reale NON è ancora verificata.**
+**Stato: Fasi 0-3 implementate e verificate con dati SINTETICI. L'acquisizione da LMU reale e l'analisi su telemetria LMU reale NON sono ancora verificate.**
 Vedi [ROADMAP.md](ROADMAP.md) e [docs/LMU-INTEGRATION.md](docs/LMU-INTEGRATION.md).
 
 ## Avvio rapido
@@ -14,7 +14,8 @@ python -m race_engineer serve                         # UI diagnostica su http:/
 python -m race_engineer serve --synthetic early_brake # fake game SINTETICO (banner viola, mai dati reali)
 python -m race_engineer record --seconds 30           # registra in terminale
 python -m race_engineer inspect-duckdb "<file>.duckdb"
-python -m pytest tests                                # 52 test
+python -m pytest tests                                # 68 test
+(cd ../frontend && npm ci && npm run build && npm test) # UI React (build già inclusa in webdist)
 ```
 Dettagli: [docs/INSTALLATION.md](docs/INSTALLATION.md).
 
