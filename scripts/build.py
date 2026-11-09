@@ -23,12 +23,23 @@ if "--skip-tests" not in sys.argv:
     run([sys.executable, "-m", "pytest", "tests"], root / "backend")
 run([sys.executable, "-m", "PyInstaller", "packaging/race_engineer.spec", "--noconfirm", "--distpath", "dist", "--workpath", "build"])
 out = root / "dist" / "RaceEngineerAI"
-for bat in [*(root / "scripts" / "windows").glob("*.bat"), *(root / "scripts" / "windows").glob("*.ps1")]:          # verification tools next to the exe (used on the Windows PC)
+for bat in [*(root / "scripts" / "windows").glob("*.bat"), *(root / "scripts" / "windows").glob("*.ps1"), *(root / "scripts" / "windows").glob("hud_annotazioni_*.json")]:          # verification tools next to the exe (used on the Windows PC)
     shutil.copy2(bat, out / bat.name)
 (out / "docs").mkdir(exist_ok=True)
-for d in ("README.md", "docs/VALIDATION.md", "docs/INSTALLATION.md", "docs/AI-PROVIDERS.md", "docs/LMU-INTEGRATION.md"):
+for d in ("README.md", "docs/VALIDATION.md", "docs/INSTALLATION.md", "docs/AI-PROVIDERS.md", "docs/LMU-INTEGRATION.md", "docs/WINDOWS-PROCEDURA.md"):
     shutil.copy2(root / d, out / "docs" / Path(d).name)
 shutil.copy2(root / "packaging" / "icon.ico", out / "icon.ico")
+def _commit():
+    import os
+    if os.environ.get("GITHUB_SHA"):
+        return os.environ["GITHUB_SHA"]
+    try:
+        return subprocess.run(["git", "rev-parse", "HEAD"], cwd=root, capture_output=True, text=True, check=True).stdout.strip()
+    except Exception:
+        return None
+import json, time
+(out / "build_info.json").write_text(json.dumps({"commit": _commit(), "built_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                                                  "version": "0.1.0"}), encoding="utf-8")
 
 
 def secret_scan(folder: Path) -> list[str]:

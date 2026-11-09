@@ -105,7 +105,8 @@ def inspect_file(path: str | Path, out_dir: Path | None = None, keep_copy: bool 
         rep["verbatim_copy_identical"] = hashlib.sha256(dest.read_bytes()).hexdigest() == sha
     out = Path(out_dir) if out_dir else root / "reports"
     out.mkdir(parents=True, exist_ok=True)
-    stem = "setup_report_" + time.strftime("%Y%m%d_%H%M%S")
+    from ..storage.paths import unique_stem
+    stem = unique_stem(out, "setup_report_")
     (out / f"{stem}.json").write_text(json.dumps(rep, indent=2), encoding="utf-8")
     md = out / f"{stem}.md"
     md.write_text("# Setup inspection\n\n```json\n" + json.dumps(rep, indent=2) + "\n```\n\nLocal report; the original was only read.\n", encoding="utf-8")

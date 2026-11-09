@@ -161,10 +161,10 @@ def report(path: str | Path, out_dir: Path | None = None, sample_stats: bool = T
         rep["g_force_analysis"] = gforce_analysis(d)
     after = Path(path).stat()
     rep["original_modified"] = (before.st_mtime_ns, before.st_size) != (after.st_mtime_ns, after.st_size)
-    from ..storage.paths import data_dir
+    from ..storage.paths import data_dir, unique_stem
     out = Path(out_dir) if out_dir else data_dir() / "reports"
     out.mkdir(parents=True, exist_ok=True)
-    stem = "duckdb_report_" + time.strftime("%Y%m%d_%H%M%S")
+    stem = unique_stem(out, "duckdb_report_")
     (out / f"{stem}.json").write_text(json.dumps(rep, indent=2, default=str), encoding="utf-8")
     md = out / f"{stem}.md"
     md.write_text(to_markdown(rep), encoding="utf-8")

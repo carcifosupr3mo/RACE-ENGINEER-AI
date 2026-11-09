@@ -1,0 +1,5 @@
+[
+  {"utc": "2026-11-09T17:02:03Z", "speed_kmh": 143, "rpm": 7200, "gear": 4, "lap": 2, "throttle_pct": 100, "brake_pct": 0},
+  {"utc": "2026-11-09T17:02:20Z", "speed_kmh": 96,  "rpm": 5100, "gear": 3, "lap": 2, "throttle_pct": 0,   "brake_pct": 80},
+  {"utc": "2026-11-09T17:02:41Z", "speed_kmh": 212, "rpm": 8100, "gear": 6, "lap": 2, "throttle_pct": 100, "brake_pct": 0}
+]

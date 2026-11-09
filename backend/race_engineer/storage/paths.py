@@ -15,3 +15,14 @@ def data_dir() -> Path:
         p = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local" / "share")) / "race-engineer-ai"
     p.mkdir(parents=True, exist_ok=True)
     return p
+
+
+def unique_stem(folder: Path, prefix: str) -> str:
+    """``<prefix><UTC timestamp>`` that does not collide with ANY existing file in ``folder`` (reports are never overwritten)."""
+    import time
+    base = prefix + time.strftime("%Y%m%d_%H%M%S")
+    stem, n = base, 1
+    while any(folder.glob(stem + ".*")):
+        n += 1
+        stem = f"{base}_{n}"
+    return stem

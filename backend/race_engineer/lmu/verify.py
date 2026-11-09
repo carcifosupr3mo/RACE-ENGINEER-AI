@@ -119,7 +119,7 @@ def _quality(db_path: Path, session_id: str, expected_hz: float) -> dict:
     dur = (wall[1] - wall[0]) if wall[0] is not None else 0
     prov = dict(con.execute("select provenance, count(*) from samples group by 1").fetchall())
     con.close()
-    return {"rows": n, "wall_duration_s": round(dur, 2), "mean_hz": round(n / dur, 1) if dur > 0 else None,
+    return {"rows": n, "wall_start": wall[0], "wall_end": wall[1], "wall_duration_s": round(dur, 2), "mean_hz": round(n / dur, 1) if dur > 0 else None,
             "expected_hz": expected_hz, "elapsed_time_going_backwards": back, "provenance_counts": prov,
             "channels_all_null": sorted(c for c, v in ch.items() if v["non_null"] == 0),
             "channels_constant": sorted(c for c, v in ch.items() if v["constant"] and v["non_null"]),
@@ -134,6 +134,9 @@ def run(seconds: int = 60, out_dir: Path | None = None, shm_path: str | None = N
     rep: dict = {"tool": "race_engineer verify-lmu", "started_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
                  "platform": {"os": platform.platform(), "python": sys.version.split()[0], "sys_platform": sys.platform},
                  "layout_source": L.LAYOUT_SOURCE, "expected_mapping_size": L.MAPPING_SIZE, "checks": [], "verdict": ""}
+    from ..app_info import info as _app_info
+    rep["app"] = _app_info()
+    rep["data_source"] = "file/bridge override (--shm-path): NOT real LMU" if shm_path else "OS shared memory 'LMU_Data'"
     chk = rep["checks"]
     on_win = sys.platform == "win32"
     chk.append(_c("windows", on_win, "running on Windows",
@@ -164,7 +167,7 @@ def run(seconds: int = 60, out_dir: Path | None = None, shm_path: str | None = N
         be = open_backend(path_override=shm_path)
     except MappingNotFound as e:
         chk.append(_c("mapping", False, "LMU_Data mapping present", str(e)))
-        rep["verdict"] = ("LMU_Data NOT reachable. In LMU: Settings > Gameplay > Enable Plugins, then fully restart LMU "
+        rep["verdict"] = ("NOT VERIFIED: LMU_Data NOT reachable. In LMU: Settings > Gameplay > Enable Plugins, then fully restart LMU "
                           "and load a session. This tool never changes game settings.")
         return _finish(rep, out_dir, data_dir)
     rep["mapping"] = {"size": be.size, "description": be.description, "expected_min": L.MAPPING_SIZE}
@@ -227,6 +230,16 @@ def run(seconds: int = 60, out_dir: Path | None = None, shm_path: str | None = N
     if row and rx:
         rep["recording_quality"] = _quality(Path(row["data_path"]), sid, diag["effective_hz"])
         q = rep["recording_quality"]
+        try:
+            rel = str(Path(row["data_path"]).relative_to(vroot))
+        except ValueError:
+            rel = Path(row["data_path"]).name
+        rep["recording"] = {"run_name": vroot.name, "data_file": rel, "session_id": sid,
+                            "wall_start_epoch": q.get("wall_start"), "wall_end_epoch": q.get("wall_end")}
+        prov = q.get("provenance_counts") or {}
+        real_only = bool(prov) and set(prov) == {"lmu_shm"} and not shm_path
+        chk.append(_c("real_data_source", real_only, "every recorded sample comes from the REAL OS shared memory (provenance lmu_shm, no --shm-path)",
+                      f"provenance={prov}; shm_path_override={bool(shm_path)}"))
         chk.append(_c("recording_rows", q.get("rows", 0) > 0 and abs(q["rows"] - rx) <= max(5, rx * 0.01),
                       "recorded rows == received samples", f"rows={q.get('rows')} received={rx}"))
         chk.append(_c("monotonic_time", q.get("elapsed_time_going_backwards", 1) == 0, "session time never goes backwards",
@@ -273,7 +286,8 @@ def to_markdown(rep: dict) -> str:
 def _finish(rep: dict, out_dir, data_dir) -> tuple[dict, Path]:
     out = Path(out_dir) if out_dir else Path(data_dir()) / "reports"
     out.mkdir(parents=True, exist_ok=True)
-    stem = "lmu_verification_" + time.strftime("%Y%m%d_%H%M%S")
+    from ..storage.paths import unique_stem
+    stem = unique_stem(out, "lmu_verification_")
     (out / f"{stem}.json").write_text(json.dumps(rep, indent=2, default=str), encoding="utf-8")
     (out / f"{stem}.md").write_text(to_markdown(rep), encoding="utf-8")
     return rep, out / f"{stem}.md"

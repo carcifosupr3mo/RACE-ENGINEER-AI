@@ -1,4 +1,9 @@
 # CHANGELOG
+## 0.4.1 (non rilasciata)
+- Procedura Windows guidata `PROCEDURA_VERIFICA.ps1`: preflight, registrazione >= 60 s con marcature HUD, report DuckDB/setup, riepilogo, controllo integrita' originali e report salvati. Test PowerShell in CI.
+- Nuovi comandi `preflight`, `hud-compare`, `verification-summary`; commit registrato in `build_info.json`.
+- Fix: `verify-lmu` non puo' piu' risultare reale con `--shm-path`; mapping non raggiungibile => codice 3; report mai sovrascritti.
+
 ## 0.3.0 — Fasi 4-9 (parziali, vedi ROADMAP)
 - AI: base fatti, ingegnere a regole, provider-agnostic (OpenAI-compatibile/Anthropic), budget/timeout/fallback, validatore anti-allucinazione, chat persistente.
 - Tyre & Fuel, Driver Development (storico, obiettivi, allenamenti), Setup Advisor conservativo, migrazione SQLite 3.

@@ -1,4 +1,4 @@
-"""CLI: python -m race_engineer {diagnose|serve|record|inspect-duckdb|layout|verify-lmu|duckdb-report|setup-inspect|ai-test|endurance-sim}"""
+"""CLI: python -m race_engineer {diagnose|serve|record|inspect-duckdb|layout|verify-lmu|preflight|hud-compare|verification-summary|duckdb-report|setup-inspect|ai-test|endurance-sim}"""
 from __future__ import annotations
 
 import argparse
@@ -103,6 +103,28 @@ def cmd_verify(args) -> int:
     return 0 if not rep["verdict"].startswith(("NOT", "INCONCLUSIVE")) else 3
 
 
+def cmd_preflight(args) -> int:
+    from .lmu.preflight import run
+    print(json.dumps(run(shm_path=args.shm_path), indent=2, default=str))
+    return 0
+
+
+def cmd_hud_compare(args) -> int:
+    from .lmu.hud import run
+    rep, md = run(args.annotations, args.verify_report, out_dir=args.out)
+    print(rep["verdict"], *[f"\n - {r}" for r in rep["reasons"]])
+    print("Report:", md)
+    return 0 if rep["verdict"].endswith("PASSED") else 3
+
+
+def cmd_summary(args) -> int:
+    from .lmu.summary import run
+    s, md = run(out_dir=args.out, verify=args.verify, preflight=args.preflight, duckdb=args.duckdb, setup=args.setup,
+                hud=args.hud, originals=args.originals)
+    print(s["phase1"]["status"], "\nReport:", md)
+    return 0
+
+
 def cmd_duckdb_report(args) -> int:
     from .importers.diagnostic_report import report
     if not args.path:                      # no argument: list the native LMU telemetry files found (read-only scan)
@@ -184,6 +206,15 @@ def main(argv=None) -> int:
     p = sub.add_parser("verify-lmu", help="real-LMU verification run + sanitized report (run on the Windows PC)")
     p.add_argument("--seconds", type=int, default=60); p.add_argument("--out"); p.add_argument("--shm-path")
     p.set_defaults(fn=cmd_verify)
+    p = sub.add_parser("preflight", help="JSON: app/commit, LMU install+process+mapping, DuckDB and setup files, writable report folder (no network, no keys)")
+    p.add_argument("--shm-path"); p.set_defaults(fn=cmd_preflight)
+    p = sub.add_parser("hud-compare", help="compare HUD values you noted (JSON annotations with epoch/utc) with the verify-lmu recording")
+    p.add_argument("--annotations", required=True); p.add_argument("--verify-report", required=True); p.add_argument("--out")
+    p.set_defaults(fn=cmd_hud_compare)
+    p = sub.add_parser("verification-summary", help="one summary from the reports produced (never declares Phase 1 complete)")
+    for a in ("verify", "preflight", "duckdb", "setup", "hud", "originals"):
+        p.add_argument("--" + a)
+    p.add_argument("--out"); p.set_defaults(fn=cmd_summary)
     args = ap.parse_args(argv)
     return args.fn(args)
 

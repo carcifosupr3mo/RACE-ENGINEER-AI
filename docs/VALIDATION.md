@@ -39,6 +39,13 @@ Dettaglio dei controlli di smoke (identici sull'exe congelato e sulla copia inst
 - Installer e exe non firmati: Windows SmartScreen puo' avvisare.
 - La Fase 1 resta "implementata, NON accettata" finche' `verify-lmu` non gira su LMU reale. Procedura: `docs/WINDOWS-PROCEDURA.md`.
 
+## Procedura Windows di verifica (aggiunta dopo il commit `5c67308`)
+Nuovi strumenti: `PROCEDURA_VERIFICA.ps1` (+ `.bat`), `preflight`, `hud-compare`, `verification-summary`, `unique_stem` (report mai sovrascritti), `build_info.json` (commit nel pacchetto), controllo `real_data_source` in `verify-lmu`.
+- **Correzione**: `verify-lmu --shm-path` (file/bridge) su Windows poteva dare "REAL LMU VERIFIED"; ora il verdetto reale richiede campioni `lmu_shm` dalla memoria condivisa di sistema, senza override. Un mapping non raggiungibile ora esce con codice 3 (prima 0).
+- Test Python (offline, sintetici): `backend/tests/test_verification_flow.py`.
+- Test PowerShell: `scripts/windows/tests/Test-Procedura.ps1` (fixture sintetiche, nessun LMU, nessuna chiave): eseguito dalla CI Windows su PowerShell 5.1 e 7 (job `windows-procedure`) e contro l'exe congelato. L'esito e' quello del run CI indicato nell'ultima sezione di questo file; in locale (Linux) non e' eseguibile (PowerShell non disponibile).
+- **Resta NON verificato**: tutto cio' che richiede LMU reale (la procedura e' stata provata solo con file sintetici).
+
 ## Stato per elemento
 
 | Elemento | Stato |
