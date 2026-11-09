@@ -7,6 +7,7 @@ dependencies = ["fastapi>=0.110", "uvicorn[standard]>=0.29", "pydantic>=2", "duc
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "httpx>=0.27"]
+desktop = ["PySide6>=6.8", "PySide6-WebEngine>=6.8"]   # >=6.12: WebEngine is a separate wheel
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

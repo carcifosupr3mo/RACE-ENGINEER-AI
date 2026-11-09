@@ -15,6 +15,6 @@ Accesso LAN: `serve --lan` stampa un token; senza il flag il server ascolta solo
 Packaging EXE e installer: Fase 9 (non implementato).
 
 ## Build / release
-`python scripts/build.py` (frontend → test → PyInstaller → zip). Su **Windows** produce `dist/RaceEngineerAI/RaceEngineerAI.exe` (desktop, serve `pip install PySide6-Essentials`)
+`python scripts/build.py` (frontend → test → PyInstaller → zip). Su **Windows** produce `dist/RaceEngineerAI/RaceEngineerAI.exe` (desktop, serve `pip install -e "backend[desktop]"`; in PySide6 6.12 Qt WebEngine è il wheel separato `PySide6-WebEngine`)
 e `race-engineer-cli.exe`. Un .exe Windows non può essere prodotto da Linux. Installer (MSI/Inno Setup): non implementato.
-Desktop da sorgente: `python scripts/run_desktop.py [--synthetic mixed]`.
+Desktop da sorgente: `pip install -e "backend[desktop]"` poi `python scripts/run_desktop.py [--synthetic mixed]` (Linux headless: servono libEGL/libxkbcommon/libnss3… e `--smoke`).

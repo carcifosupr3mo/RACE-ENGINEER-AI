@@ -11,8 +11,8 @@ Una fase è "completata" solo se i criteri di accettazione sono rispettati **con
 | 5 Setup Advisor | 🟡 parziale | import verbatim, parser generico, proposte solo con limiti min/max verificati nel setup; **formato setup LMU reale non verificato**; mancano dati di comportamento (sotto/sovrasterzo) per correlazioni più forti |
 | 6 Tyre & Fuel | ✅ implementata, testata con dati sintetici | consumo su giri puliti, piano carburante con margine manuale, evoluzione gomme; non verificata su LMU |
 | 7 Driver Development | ✅ implementata, testata con dati sintetici | storico giorno/settimana/mese, obiettivi, allenamenti dai punti deboli misurati |
-| 8 Desktop + Web definitivi | 🟡 vedi report | shell PySide6 + tray + notifiche scritta; verifica headless su Linux (vedi TESTING); **mai eseguita su Windows**; LAN opzionale via `--lan` |
-| 9 Ottimizzazione/packaging | 🟡 parziale | spec PyInstaller + `scripts/build.py`; bundle Linux verificato (CLI, analisi, chat); **.exe Windows e installer NON prodotti** (serve Windows) |
+| 8 Desktop + Web definitivi | 🟡 vedi report | shell PySide6 (tray, notifiche, chiusura controllata) con smoke test headless su Linux (sorgente e bundle congelato); **tray/notifiche non osservate, mai eseguita su Windows**; LAN opzionale via `--lan` |
+| 9 Ottimizzazione/packaging | 🟡 parziale | spec PyInstaller + `scripts/build.py`; bundle Linux verificato (CLI e desktop congelati); **.exe Windows e installer NON prodotti** (serve Windows) |
 
 ## Fase 1 — criteri di accettazione
 | Criterio | Stato |
