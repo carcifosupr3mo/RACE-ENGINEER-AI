@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Race Engineer AI · Diagnostica</title>
+<style>
+:root{--bg:#0b0d10;--panel:#12161b;--line:#222a33;--tx:#e6ebf0;--mut:#8593a1;--ok:#3ddc84;--warn:#ffb020;--bad:#ff4d4f;--acc:#38bdf8;--syn:#ff3df5}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:14px/1.45 "Segoe UI",system-ui,sans-serif}
+header{display:flex;gap:16px;align-items:center;padding:12px 16px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+h1{font-size:15px;letter-spacing:.14em;text-transform:uppercase;margin:0}
+h1 b{color:var(--acc)}
+.badge{padding:3px 10px;border-radius:3px;font-weight:600;font-size:12px;letter-spacing:.05em;border:1px solid var(--line)}
+.s-acquiring{color:var(--ok);border-color:var(--ok)} .s-shared_memory_connected,.s-waiting_for_session,.s-simulator_started{color:var(--warn);border-color:var(--warn)}
+.s-simulator_not_detected,.s-acquisition_error,.s-session_ended{color:var(--bad);border-color:var(--bad)}
+#syn{display:none;background:var(--syn);color:#000;text-align:center;font-weight:700;letter-spacing:.12em;padding:6px}
+main{display:grid;gap:12px;padding:12px 16px;grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
+section{background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:12px}
+h2{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--mut);margin:0 0 10px}
+.big{font:600 44px/1 "Cascadia Mono",Consolas,monospace;font-variant-numeric:tabular-nums}
+.unit{color:var(--mut);font-size:13px;margin-left:4px}
+.row{display:flex;justify-content:space-between;gap:8px;padding:3px 0;border-bottom:1px dotted var(--line)}
+.row span:first-child{color:var(--mut)}
+.mono{font-family:"Cascadia Mono",Consolas,monospace;font-variant-numeric:tabular-nums}
+.bar{height:12px;background:#0a0c0f;border:1px solid var(--line);position:relative;margin:2px 0 8px}
+.bar i{position:absolute;left:0;top:0;bottom:0;background:var(--ok)} #brk i{background:var(--bad)} #thr i{background:var(--ok)}
+#str i{background:var(--acc);width:6px;transform:translateX(-3px)}
+.src{font-size:10px;padding:0 5px;border-radius:2px;margin-left:6px;border:1px solid var(--line);color:var(--mut);vertical-align:middle}
+.src.lmu_shm{color:var(--ok)} .src.computed{color:var(--acc)} .src.synthetic{color:var(--syn);border-color:var(--syn)} .src.unavailable{color:var(--bad)}
+li{margin:4px 0;list-style:none} .ok::before{content:"✔ ";color:var(--ok)} .no::before{content:"✘ ";color:var(--bad)} .na::before{content:"? ";color:var(--warn)}
+.fix{color:var(--warn);font-size:12px;margin-left:18px} .det{color:var(--mut);font-size:12px;margin-left:18px;word-break:break-all}
+ul{padding:0;margin:0} button{background:#1b232c;color:var(--tx);border:1px solid var(--line);padding:5px 12px;border-radius:3px;cursor:pointer}
+</style>
+</head>
+<body>
+<div id="syn">DATI SINTETICI — NON PROVENGONO DA LE MANS ULTIMATE — NON VERIFICANO L'INTEGRAZIONE</div>
+<header>
+  <h1>Race Engineer <b>AI</b> · diagnostica</h1>
+  <span id="state" class="badge">…</span>
+  <span class="mono" id="hz"></span>
+  <span id="ctx" style="color:var(--mut)"></span>
+</header>
+<main>
+  <section><h2>Velocità</h2><div><span class="big" id="speed">–</span><span class="unit">km/h</span><span class="src" id="src_speed"></span></div>
+    <div style="margin-top:10px"><span class="big" id="rpm" style="font-size:28px">–</span><span class="unit">rpm</span>
+    &nbsp;&nbsp;<span class="big" id="gear" style="font-size:28px">–</span><span class="unit">marcia</span></div></section>
+  <section><h2>Comandi pilota</h2>
+    Acceleratore <span class="mono" id="thr_v"></span><div class="bar" id="thr"><i style="width:0"></i></div>
+    Freno <span class="mono" id="brk_v"></span><div class="bar" id="brk"><i style="width:0"></i></div>
+    Sterzo <span class="mono" id="str_v"></span><div class="bar" id="str"><i style="left:50%"></i></div></section>
+  <section><h2>Sessione</h2><div id="sess"></div></section>
+  <section><h2>Acquisizione</h2><div id="acq"></div></section>
+  <section><h2>Verifica connessione guidata</h2><ul id="checks"></ul><button onclick="loadReport()">Ripeti verifica</button></section>
+  <section><h2>Sessioni registrate</h2><div id="sessions"></div></section>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+const f=(x,d=0)=>x==null?'–':Number(x).toFixed(d);
+const row=(k,v)=>`<div class="row"><span>${k}</span><span class="mono">${v}</span></div>`;
+function tag(p){return `<span class="src ${p}">${p}</span>`}
+function render(m){
+  const st=m.status, s=m.sample, c=m.context;
+  $('state').textContent=st.state_label; $('state').className='badge s-'+st.state;
+  $('syn').style.display=(st.synthetic||(s&&s.source==='synthetic'))?'block':'none';
+  $('hz').textContent=st.effective_hz+' Hz';
+  $('ctx').textContent=c?`${c.track_name} · ${c.vehicle_name} · ${c.session_type}`:'';
+  if(s){const v=s.values,p=s.provenance;
+    $('speed').textContent=f(v.speed_kmh); $('src_speed').outerHTML=`<span class="src ${p.speed_kmh}" id="src_speed">${p.speed_kmh}</span>`;
+    $('rpm').textContent=f(v.rpm); $('gear').textContent=v.gear<0?'R':(v.gear===0?'N':v.gear);
+    $('thr').firstChild.style.width=(100*v.throttle)+'%'; $('thr_v').textContent=f(100*v.throttle)+'%';
+    $('brk').firstChild.style.width=(100*v.brake)+'%'; $('brk_v').textContent=f(100*v.brake)+'%';
+    $('str').firstChild.style.left=(50+50*v.steering)+'%'; $('str_v').textContent=f(v.steering,2);
+  }
+  if(c) $('sess').innerHTML=row('Circuito',c.track_name||'–')+row('Vettura',c.vehicle_name||'–')+row('Classe',c.vehicle_class||'–')+
+    row('Tipo sessione',c.session_type+' ('+c.session_code+')')+row('Lunghezza giro',f(c.track_length_m)+' m')+row('Versione gioco (mapping)',c.game_version)+
+    (s?row('Giro',s.values.lap_number)+row('Distanza giro',f(s.values.lap_dist_m)+' m')+row('Settore',s.values.sector??'–')+row('Carburante',f(s.values.fuel_l,1)+' L'):'');
+  $('acq').innerHTML=row('Campioni ricevuti',st.samples_received)+row('Campioni persi (stima)',st.samples_lost)+row('Durata',st.duration_s+' s')+
+    row('Memoria processo',f(st.rss_mb,0)+' MB')+row('Mapping reale / atteso',(st.mapping.size??'–')+' / '+st.mapping.expected_size)+
+    row('Registrazione',st.recording?'attiva':'ferma')+row('Riconnessioni',st.reconnects)+(st.errors.length?row('Ultimo errore',st.errors.at(-1).msg):'');
+}
+function connect(){
+  const q=new URLSearchParams(location.search).get('token');
+  const ws=new WebSocket((location.protocol==='https:'?'wss://':'ws://')+location.host+'/ws/live'+(q?'?token='+q:''));
+  ws.onmessage=e=>render(JSON.parse(e.data)); ws.onclose=()=>{$('state').textContent='Backend non raggiungibile';setTimeout(connect,1500)};
+}
+async function api(p){const q=new URLSearchParams(location.search).get('token');const r=await fetch(p+(q?'?token='+q:''));return r.json()}
+async function loadReport(){
+  const r=await api('/api/diagnostics/report');
+  $('checks').innerHTML=r.checks.map(c=>`<li class="${c.ok===true?'ok':c.ok===false?'no':'na'}">${c.title}${c.detail?`<div class="det">${c.detail}</div>`:''}${c.fix?`<div class="fix">${c.fix}</div>`:''}</li>`).join('')+`<li><b>${r.verdict}</b></li>`;
+}
+async function loadSessions(){
+  const r=await api('/api/sessions');
+  $('sessions').innerHTML=r.length?r.slice(0,8).map(s=>row((s.is_synthetic?'[SINT] ':'')+(s.track||'?'),`${s.status} · ${s.samples} camp.`)).join(''):'<span style="color:var(--mut)">Nessuna sessione</span>';
+}
+connect(); loadReport(); loadSessions(); setInterval(loadSessions,5000);
+</script>
+</body>
+</html>
