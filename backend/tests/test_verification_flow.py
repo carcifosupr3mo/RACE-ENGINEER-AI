@@ -156,3 +156,28 @@ def test_reports_are_never_overwritten(tmp_path):
     (tmp_path / f"x_{t}.md").write_text("old2")
     s = unique_stem(tmp_path, "x_")
     assert s != f"x_{t}" and not list(tmp_path.glob(s + ".*"))
+
+
+def test_reports_never_contain_the_user_name(tmp_path, monkeypatch):
+    """Windows-style user paths in every report (md AND json, including JSON-escaped backslashes) are shortened."""
+    base = tmp_path / "Users" / "SomeDriver42" / "AppData"
+    base.mkdir(parents=True)
+    monkeypatch.setenv("RACE_ENGINEER_DATA", str(base / "data"))
+    game = base / "Le Mans Ultimate"
+    (game / "UserData" / "Telemetry").mkdir(parents=True)
+    (game / "UserData" / "player" / "Settings").mkdir(parents=True)
+    monkeypatch.setenv("LMU_GAME_DIR", str(game))
+    db = build(game / "UserData" / "Telemetry" / "s.duckdb", "constant", laps=1)
+    svm = game / "UserData" / "player" / "Settings" / "t.svm"; svm.write_text("[GENERAL]\nNotes=x\n")
+    out = base / "data" / "reports"
+    shm = _shm_file(base)
+    assert main(["preflight", "--shm-path", str(shm), "--save", str(out / "pf.json")]) == 0
+    main(["verify-lmu", "--seconds", "1", "--shm-path", str(shm), "--out", str(out)])
+    main(["duckdb-report", str(db), "--out", str(out)])
+    main(["setup-inspect", str(svm), "--out", str(out)])
+    v = sorted(out.glob("lmu_verification_*.json"))[0]
+    main(["verification-summary", "--out", str(out), "--verify", str(v), "--preflight", str(out / "pf.json")])
+    texts = {p.name: p.read_text(encoding="utf-8") for p in out.iterdir() if p.is_file()}
+    assert len(texts) >= 9
+    assert [n for n, t in texts.items() if "SomeDriver42" in t] == []
+    assert main(["preflight", "--save", str(out / "pf.json")]) == 2          # never overwrites

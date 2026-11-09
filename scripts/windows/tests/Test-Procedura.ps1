@@ -58,7 +58,8 @@ Check "HUD non eseguito e dichiarato tale" ($sum.hud.run -eq $false)
 $integ = Get-ChildItem -LiteralPath $rep -Filter "originals_integrity_*.json" -File | Select-Object -First 1 | ForEach-Object { Get-Content -LiteralPath $_.FullName -Raw -Encoding UTF8 | ConvertFrom-Json }
 Check "integrita' originali: invariati" ($integ.all_unchanged -eq $true)
 Check "la cartella LMU simulata e' identica prima e dopo (hash, dimensioni, date, nessun file creato)" ((Tree-Fingerprint $game) -eq $fpBefore)
-Check "nessun percorso utente nei report" (-not (Get-ChildItem -LiteralPath $rep -Filter "*.md" | Select-String -Pattern ([regex]::Escape($env:USERNAME + "\")) -Quiet))
+$leak = @(Get-ChildItem -LiteralPath $rep -File | Where-Object { $_.Name -notlike "hud_annotations_*" } | Select-String -Pattern ([regex]::Escape($env:USERNAME)) | ForEach-Object { $_.Filename + ": " + $_.Line.Trim() })
+Check "nessun nome utente nei report (md e json)" ($leak.Count -eq 0) (($leak | Select-Object -First 3) -join " || ")
 
 # --- 2. seconda esecuzione: nulla viene sovrascritto
 $hashes1 = @{}; Get-ChildItem -LiteralPath $rep -File | ForEach-Object { $hashes1[$_.Name] = (Get-FileHash -LiteralPath $_.FullName).Hash }

@@ -36,6 +36,17 @@ def sanitize(s: str) -> str:
     return re.sub(r"(?i)(users[\\/])[^\\/]+", r"\1<user>", s)
 
 
+def sanitize_obj(o):
+    """``sanitize`` applied to every string of a JSON-like structure (string-level sanitising misses JSON-escaped backslashes)."""
+    if isinstance(o, str):
+        return sanitize(o)
+    if isinstance(o, dict):
+        return {k: sanitize_obj(v) for k, v in o.items()}
+    if isinstance(o, (list, tuple)):
+        return [sanitize_obj(v) for v in o]
+    return o
+
+
 def check_read_only_source() -> dict:
     """Static proof for this build: the package source contains no write/inject API for the mapping or the game."""
     root = Path(__file__).resolve().parent.parent
@@ -288,6 +299,6 @@ def _finish(rep: dict, out_dir, data_dir) -> tuple[dict, Path]:
     out.mkdir(parents=True, exist_ok=True)
     from ..storage.paths import unique_stem
     stem = unique_stem(out, "lmu_verification_")
-    (out / f"{stem}.json").write_text(json.dumps(rep, indent=2, default=str), encoding="utf-8")
-    (out / f"{stem}.md").write_text(to_markdown(rep), encoding="utf-8")
+    (out / f"{stem}.json").write_text(json.dumps(sanitize_obj(rep), indent=2, default=str), encoding="utf-8")
+    (out / f"{stem}.md").write_text(sanitize(to_markdown(rep)), encoding="utf-8")
     return rep, out / f"{stem}.md"

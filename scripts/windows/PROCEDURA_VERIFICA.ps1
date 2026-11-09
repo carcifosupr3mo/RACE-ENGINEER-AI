@@ -117,22 +117,30 @@ if (-not $pf.mapping.present -and -not $NonInteractive) {
     Write-Host "  Entra in pista e guida con continuita' durante la registrazione."
 }
 $PreflightFile = Join-Path $ReportsDir ("preflight_" + $ts + ".json")
-Save-Text $PreflightFile $script:PfRaw
+$pa = @("preflight", "--save", $PreflightFile)
+if ($ShmPath) { $pa += @("--shm-path", $ShmPath) }
+$null = Invoke-Cli $pa          # copia salvata gia' anonimizzata (nessun nome utente)
+if (-not (Test-Path -LiteralPath $PreflightFile)) { Write-Bad "preflight non salvato." }
 
 # ---------------------------------------------------------------- 3. registrazione
 Write-Step ("3. Diagnostica e registrazione di " + $Seconds + " s (dati REALI da memoria condivisa)")
 if ($Seconds -lt 60) { Write-Warn2 "meno di 60 s: la verifica definitiva richiede almeno 60 s." }
-$null = Invoke-Cli @("diagnose")
+$dargs = @("diagnose")
+if ($ShmPath) { $dargs += @("--shm-path", $ShmPath) }
+$null = Invoke-Cli $dargs
 Write-Host ("  diagnose: codice " + $script:LastExit + " (0 = mapping raggiungibile, 2 = non raggiungibile)")
 
-$vlog = Join-Path $ReportsDir ("verify_console_" + $ts + ".log")
-$verr = Join-Path $ReportsDir ("verify_console_" + $ts + ".err.log")
+$LogDir = Join-Path $pf.data_dir.path "logs"          # i log grezzi della console contengono percorsi reali: restano FUORI da reports
+New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
+$vlog = Join-Path $LogDir ("verify_console_" + $ts + ".log")
+$verr = Join-Path $LogDir ("verify_console_" + $ts + ".err.log")
 $vargs = @(); if ($script:UseModule) { $vargs += @("-m", "race_engineer") }
 $vargs += @("verify-lmu", "--seconds", "$Seconds", "--out", $ReportsDir)
 if ($ShmPath) { $vargs += @("--shm-path", $ShmPath) }
 $argString = ($vargs | ForEach-Object { Quote-Arg $_ }) -join " "
 if (-not $NonInteractive) { Write-Host "  Durante la registrazione premi INVIO ogni volta che leggi i valori sull'HUD (max ~6 volte) e annotali." -ForegroundColor Yellow }
 $proc = Start-Process -FilePath $script:Exe -ArgumentList $argString -RedirectStandardOutput $vlog -RedirectStandardError $verr -NoNewWindow -PassThru
+$null = $proc.Handle            # necessario in Windows PowerShell 5.1 perche' ExitCode non risulti vuoto
 $marks = New-Object System.Collections.ArrayList
 $printed = 0
 $canKey = (-not $NonInteractive)
@@ -158,7 +166,7 @@ $proc.WaitForExit()
 $verifyExit = $proc.ExitCode
 $lines = @(Get-Content -LiteralPath $vlog -ErrorAction SilentlyContinue)
 for ($i = $printed; $i -lt $lines.Count; $i++) { Write-Host ("  " + $lines[$i]) }
-Write-Host ("  verify-lmu: codice di uscita " + $verifyExit)
+Write-Host ("  verify-lmu: codice di uscita [" + $verifyExit + "]")
 
 $VerifyMd = $null
 foreach ($l in $lines) { if ($l -match '^Report:\s+(.+?\.md)') { $VerifyMd = $Matches[1].Trim() } }
@@ -170,6 +178,12 @@ if (-not ($VerifyJson -and (Test-Path -LiteralPath $VerifyJson))) {
     if ($cand) { $VerifyJson = $cand.FullName; $VerifyMd = [System.IO.Path]::ChangeExtension($cand.FullName, ".md") }
 }
 if (-not $VerifyJson) { Write-Bad "report di verifica non trovato dopo verify-lmu." }
+# l'esito si decide dal verdetto scritto nel report (non solo dal codice di uscita del processo, che in PS 5.1 puo' risultare vuoto)
+$verifyVerdict = ""
+if ($VerifyJson -and (Test-Path -LiteralPath $VerifyJson)) {
+    try { $verifyVerdict = [string]((Get-Content -LiteralPath $VerifyJson -Raw -Encoding UTF8 | ConvertFrom-Json).verdict) } catch { $verifyVerdict = "" }
+}
+Write-Host ("  verdetto: " + $verifyVerdict)
 
 # ---------------------------------------------------------------- 4. DuckDB e setup
 Write-Step "4. Telemetria DuckDB nativa e setup (percorsi cercati automaticamente)"
@@ -329,5 +343,5 @@ if (-not $NonInteractive -and $SummaryMd -and (Test-Path -LiteralPath $SummaryMd
 if (-not $okAll) { exit 2 }
 if ($script:Problems.Count -gt 0) { exit 2 }
 if (-not $VerifyJson) { exit 2 }
-if ($verifyExit -ne 0) { exit 3 }
+if (-not $verifyVerdict.StartsWith("REAL LMU VERIFIED")) { exit 3 }
 exit 0

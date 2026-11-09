@@ -107,7 +107,8 @@ def inspect_file(path: str | Path, out_dir: Path | None = None, keep_copy: bool 
     out.mkdir(parents=True, exist_ok=True)
     from ..storage.paths import unique_stem
     stem = unique_stem(out, "setup_report_")
-    (out / f"{stem}.json").write_text(json.dumps(rep, indent=2), encoding="utf-8")
+    from ..lmu.verify import sanitize, sanitize_obj
+    (out / f"{stem}.json").write_text(json.dumps(sanitize_obj(rep), indent=2), encoding="utf-8")
     md = out / f"{stem}.md"
-    md.write_text("# Setup inspection\n\n```json\n" + json.dumps(rep, indent=2) + "\n```\n\nLocal report; the original was only read.\n", encoding="utf-8")
+    md.write_text(sanitize("# Setup inspection\n\n```json\n" + json.dumps(sanitize_obj(rep), indent=2) + "\n```\n\nLocal report; the original was only read.\n"), encoding="utf-8")
     return rep, md

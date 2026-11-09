@@ -9,7 +9,7 @@ import json
 import time
 from pathlib import Path
 
-from .verify import sanitize
+from .verify import sanitize, sanitize_obj
 
 
 def _load(p) -> dict | None:
@@ -124,7 +124,7 @@ def run(out_dir: Path | None = None, **inputs) -> tuple[dict, Path]:
     out.mkdir(parents=True, exist_ok=True)
     from ..storage.paths import unique_stem
     stem = unique_stem(out, "verification_summary_")
-    (out / f"{stem}.json").write_text(json.dumps(s, indent=2, default=str), encoding="utf-8")
+    (out / f"{stem}.json").write_text(json.dumps(sanitize_obj(s), indent=2, default=str), encoding="utf-8")
     md = out / f"{stem}.md"
     md.write_text(to_markdown(s), encoding="utf-8")
     return s, md

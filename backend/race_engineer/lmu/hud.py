@@ -153,7 +153,8 @@ def run(annotations_path: str | Path, verify_json: str | Path, out_dir: Path | N
     out.mkdir(parents=True, exist_ok=True)
     from ..storage.paths import unique_stem
     stem = unique_stem(out, "hud_comparison_")
-    (out / f"{stem}.json").write_text(json.dumps(rep, indent=2, default=str), encoding="utf-8")
+    from .verify import sanitize, sanitize_obj
+    (out / f"{stem}.json").write_text(json.dumps(sanitize_obj(rep), indent=2, default=str), encoding="utf-8")
     md = out / f"{stem}.md"
-    md.write_text(to_markdown(rep), encoding="utf-8")
+    md.write_text(sanitize(to_markdown(rep)), encoding="utf-8")
     return rep, md

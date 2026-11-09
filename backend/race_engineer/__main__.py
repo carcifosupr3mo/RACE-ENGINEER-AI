@@ -105,7 +105,15 @@ def cmd_verify(args) -> int:
 
 def cmd_preflight(args) -> int:
     from .lmu.preflight import run
-    print(json.dumps(run(shm_path=args.shm_path), indent=2, default=str))
+    rep = run(shm_path=args.shm_path)
+    print(json.dumps(rep, indent=2, default=str))        # stdout keeps the REAL paths (the PowerShell procedure needs them)
+    if args.save:                                         # the saved copy is sanitised (no user name) and never overwrites
+        from .lmu.verify import sanitize_obj
+        dest = Path(args.save)
+        if dest.exists():
+            print(f"refusing to overwrite {dest.name}", file=sys.stderr)
+            return 2
+        dest.write_text(json.dumps(sanitize_obj(rep), indent=2, default=str), encoding="utf-8")
     return 0
 
 
@@ -207,7 +215,7 @@ def main(argv=None) -> int:
     p.add_argument("--seconds", type=int, default=60); p.add_argument("--out"); p.add_argument("--shm-path")
     p.set_defaults(fn=cmd_verify)
     p = sub.add_parser("preflight", help="JSON: app/commit, LMU install+process+mapping, DuckDB and setup files, writable report folder (no network, no keys)")
-    p.add_argument("--shm-path"); p.set_defaults(fn=cmd_preflight)
+    p.add_argument("--shm-path"); p.add_argument("--save", help="also write a sanitised copy here (refuses to overwrite)"); p.set_defaults(fn=cmd_preflight)
     p = sub.add_parser("hud-compare", help="compare HUD values you noted (JSON annotations with epoch/utc) with the verify-lmu recording")
     p.add_argument("--annotations", required=True); p.add_argument("--verify-report", required=True); p.add_argument("--out")
     p.set_defaults(fn=cmd_hud_compare)

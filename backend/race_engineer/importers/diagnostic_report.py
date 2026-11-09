@@ -18,6 +18,7 @@ from pathlib import Path
 
 import numpy as np
 
+from ..lmu.verify import sanitize, sanitize_obj
 from .lmu_duckdb import LmuDuckdb, q
 
 PERSONAL = re.compile(r"driver|player|user|steam|email|account|name_?id|pc|machine|host", re.I)
@@ -165,9 +166,9 @@ def report(path: str | Path, out_dir: Path | None = None, sample_stats: bool = T
     out = Path(out_dir) if out_dir else data_dir() / "reports"
     out.mkdir(parents=True, exist_ok=True)
     stem = unique_stem(out, "duckdb_report_")
-    (out / f"{stem}.json").write_text(json.dumps(rep, indent=2, default=str), encoding="utf-8")
+    (out / f"{stem}.json").write_text(json.dumps(sanitize_obj(rep), indent=2, default=str), encoding="utf-8")
     md = out / f"{stem}.md"
-    md.write_text(to_markdown(rep), encoding="utf-8")
+    md.write_text(sanitize(to_markdown(rep)), encoding="utf-8")
     return rep, md
 
 

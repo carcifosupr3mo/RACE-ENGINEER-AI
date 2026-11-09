@@ -37,7 +37,7 @@ Non serve nessuna chiave AI. Cosa fa, in ordine (e cosa ti chiede):
 - `verification_summary_<data>.md` (**leggi questo per primo**) e `.json`
 - `lmu_verification_<data>.md/.json` (shared memory, offset, frequenza, campioni, qualita'), `preflight_<data>.json`
 - `duckdb_report_<data>.md/.json`, `setup_report_<data>.md/.json`, `hud_comparison_<data>.md/.json`, `originals_integrity_<data>.json`, `hud_annotations_<data>.json`
-- registrazione di prova: `%LOCALAPPDATA%\RaceEngineerAI\verify_runs\<data>`; copie fedeli dei setup: `setups_raw\`; log della console: `reports\verify_console_<data>.log`
+- registrazione di prova: `%LOCALAPPDATA%\RaceEngineerAI\verify_runs\<data>`; copie fedeli dei setup: `setups_raw\`; log grezzo della console (con percorsi reali, per questo fuori da `reports`): `%LOCALAPPDATA%\RaceEngineerAI\logs\verify_console_<data>.log`
 
 Il riepilogo contiene: versione app e commit (dal file `build_info.json` della build; "sconosciuto" per build precedenti), versione LMU (Steam build id e `gameVersion` letta dal mapping), mapping trovato e dimensione, offset verificati (struct del nostro layout = struct calcolate dagli header installati di LMU; se gli header non si trovano lo stato e' *sconosciuto*, non "ok"), frequenza effettiva, campioni ricevuti/persi, campi disponibili / costanti (non verificati) / mancanti, errori, stato DuckDB, stato setup, qualita' dati, esito HUD. **Origine dati**: "REAL" solo se ogni campione proviene dalla memoria condivisa del sistema; con `-ShmPath` (file/bridge) o dati sintetici il riepilogo scrive "NOT REAL" e la verifica non puo' risultare reale. Il riepilogo non dichiara **mai** la Fase 1 completata: al massimo scrive "ACCEPTANCE CRITERIA MET - final acceptance is the user's decision".
 
