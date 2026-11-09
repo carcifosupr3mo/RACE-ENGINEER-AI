@@ -11,7 +11,7 @@
 
 | Campo | Valore |
 |---|---|
-| Commit verificato | `fa45cd4` ([run 6 `42654580988`](https://github.com/carcifosupr3mo/RACE-ENGINEER-AI/actions/runs/42654580988)), 2026-11-09, **success**. Rispetto a `5c67308` ([run 5 `42654465650`](https://github.com/carcifosupr3mo/RACE-ENGINEER-AI/actions/runs/42654465650), anch'esso **success**) cambia solo la documentazione: stesso codice |
+| Commit verificato (build precedente alla procedura) | `fa45cd4` ([run 6 `42654580988`](https://github.com/carcifosupr3mo/RACE-ENGINEER-AI/actions/runs/42654580988)), 2026-11-09, **success**. Rispetto a `5c67308` ([run 5 `42654465650`](https://github.com/carcifosupr3mo/RACE-ENGINEER-AI/actions/runs/42654465650), anch'esso **success**) cambia solo la documentazione: stesso codice |
 | Ambiente Windows | runner GitHub `windows-latest`, Python 3.13.17, Inno Setup 6.7.1, PyInstaller 6.22.3, PySide6/WebEngine 6.12.0 |
 | Job `frontend` (ubuntu) | success: `npm ci && npm run build && npm test` (4 vitest) |
 | Job `backend` (ubuntu) | success: `pytest tests` |
@@ -39,12 +39,24 @@ Dettaglio dei controlli di smoke (identici sull'exe congelato e sulla copia inst
 - Installer e exe non firmati: Windows SmartScreen puo' avvisare.
 - La Fase 1 resta "implementata, NON accettata" finche' `verify-lmu` non gira su LMU reale. Procedura: `docs/WINDOWS-PROCEDURA.md`.
 
-## Procedura Windows di verifica (aggiunta dopo il commit `5c67308`)
-Nuovi strumenti: `PROCEDURA_VERIFICA.ps1` (+ `.bat`), `preflight`, `hud-compare`, `verification-summary`, `unique_stem` (report mai sovrascritti), `build_info.json` (commit nel pacchetto), controllo `real_data_source` in `verify-lmu`.
-- **Correzione**: `verify-lmu --shm-path` (file/bridge) su Windows poteva dare "REAL LMU VERIFIED"; ora il verdetto reale richiede campioni `lmu_shm` dalla memoria condivisa di sistema, senza override. Un mapping non raggiungibile ora esce con codice 3 (prima 0).
-- Test Python (offline, sintetici): `backend/tests/test_verification_flow.py`.
-- Test PowerShell: `scripts/windows/tests/Test-Procedura.ps1` (fixture sintetiche, nessun LMU, nessuna chiave): eseguito dalla CI Windows su PowerShell 5.1 e 7 (job `windows-procedure`) e contro l'exe congelato. L'esito e' quello del run CI indicato nell'ultima sezione di questo file; in locale (Linux) non e' eseguibile (PowerShell non disponibile).
-- **Resta NON verificato**: tutto cio' che richiede LMU reale (la procedura e' stata provata solo con file sintetici).
+## Procedura Windows di verifica definitiva (commit `2a59029`)
+**Verificato su runner Windows GitHub, SENZA LMU, con file sintetici** - [run 9 `42677367561`](https://github.com/carcifosupr3mo/RACE-ENGINEER-AI/actions/runs/42677367561), tutti i job success:
+| Cosa | Esito |
+|---|---|
+| backend (ubuntu) / frontend (ubuntu) | success |
+| `windows-procedure`: `Test-Procedura.ps1` su **Windows PowerShell 5.1** e su **PowerShell 7** | success, 0 controlli falliti (circa 25 controlli per shell) |
+| `windows-bundle`: build, smoke exe congelato **20/20**, `secret scan: CLEAN`, installer, installazione silenziosa + smoke della copia installata **20/20**, disinstallazione, upload | success |
+| `windows-bundle`: `Test-Procedura.ps1` contro l'**exe congelato** (PowerShell 7.6.9) | success, tutti i controlli passati |
+| Artefatto `RaceEngineerAI-windows` | id 13701747102, 580.173.041 B, digest zip `sha256:710f27bceb5ec4de0879795c2773e41a3fdb55d9ffd6260dda69fe7db6e5130e` |
+| SHA256 (`SHA256SUMS.txt`, log) | Setup `4cb5ca8a6c055c7321737d8b27a64f73c92a22c60e97dc84849534fdc56dbb1a`; zip `db5b1338becb3ce8584d33aea76f3149d19dc52dcb8fffce49840b3826659fb7` |
+
+Cosa dimostrano i test PowerShell: report creati, non vuoti e JSON validi; dati da file/bridge => verifica NON reale (codice 3) e riepilogo "NOT COMPLETE / data NOT REAL"; DuckDB e setup trovati automaticamente; HUD non eseguito dichiarato tale; file originali e cartella LMU simulata invariati (hash/dimensioni/date, nessun file creato); nessun nome utente nei report (md e json); seconda esecuzione non sovrascrive i report precedenti; senza LMU/mapping/file: codice 3 con elenco di cio' che manca (nessun crash); percorso inesistente: errore (codice 2); la procedura non usa chiavi AI ne' rete.
+
+Problemi trovati dalla CI Windows e corretti prima di questo esito (run 8, `63c4fac`): nomi utente presenti nei report (JSON con backslash raddoppiati non venivano abbreviati) -> sanitizzazione strutturale; `ExitCode` del processo vuoto in PowerShell 5.1 -> esito deciso dal verdetto nel report; log grezzo della console spostato fuori da `reports`. Correzione di sostanza: `verify-lmu --shm-path` non puo' piu' risultare "REAL"; un mapping non raggiungibile esce con codice 3.
+
+Test Python (offline, sintetici): `backend/tests/test_verification_flow.py` (preflight, verdetto file/bridge non reale anche "su Windows", confronto HUD con latenza/arrotondamenti, errori HUD, offset di numerazione, riepilogo mai "completo", nessun nome utente, nessuna sovrascrittura). Totale locale: 157 pytest.
+
+**Non verificato (richiede LMU reale)**: tutto cio' che riguarda mapping/offset/gameVersion reali, frequenza e campioni da LMU, confronto HUD reale, DuckDB e setup reali, interazione di tasti (INVIO per le marcature) e prompt interattivi (testati solo in modalita' `-NonInteractive`), commit nel pacchetto (`build_info.json`) non asserito dai test sul pacchetto.
 
 ## Stato per elemento
 
