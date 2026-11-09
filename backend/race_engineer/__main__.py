@@ -1,4 +1,4 @@
-"""CLI: python -m race_engineer {diagnose|serve|record|inspect-duckdb|layout}"""
+"""CLI: python -m race_engineer {diagnose|serve|record|inspect-duckdb|layout|verify-lmu|duckdb-report|setup-inspect|ai-test|endurance-sim}"""
 from __future__ import annotations
 
 import argparse
@@ -95,6 +95,37 @@ def cmd_inspect(args) -> int:
     return 0
 
 
+def cmd_verify(args) -> int:
+    from .lmu.verify import run
+    rep, md = run(seconds=args.seconds, out_dir=args.out, shm_path=args.shm_path)
+    print("\nVERDICT:", rep["verdict"])
+    print("Report:", md, "(+ .json). Contains no credentials; share it if useful.")
+    return 0 if not rep["verdict"].startswith(("NOT", "INCONCLUSIVE")) else 3
+
+
+def cmd_duckdb_report(args) -> int:
+    from .importers.diagnostic_report import report
+    rep, md = report(args.path, out_dir=args.out)
+    print(f"ok={rep['ok']} channels={len(rep['channels'])} events={len(rep['events'])} g_force={rep['g_force_analysis'].get('verdict')}")
+    print("original file modified:", rep["original_modified"], "\nReport:", md)
+    return 0 if rep["ok"] else 2
+
+
+def cmd_setup_inspect(args) -> int:
+    from .setup.inspect import find_setup_files, inspect_file
+    if not args.path:
+        inst = find_install()
+        files = find_setup_files(inst.user_data) if inst.user_data else []
+        print(f"{len(files)} .svm file(s) found" + ("" if files else " (UserData/player/Settings not found or empty)"))
+        for f in files[:50]:
+            print(" ", f)
+        print("Pass one of them: python -m race_engineer setup-inspect <file>")
+        return 0 if files else 2
+    rep, md = inspect_file(args.path, out_dir=args.out)
+    print(f"format={rep['format']} sha256={rep['file']['sha256'][:16]}... verbatim copy identical={rep.get('verbatim_copy_identical')}\nReport: {md}")
+    return 0
+
+
 def cmd_layout(args) -> int:
     print(f"# mapping '{L.LMU_SHARED_MEMORY_NAME}' expected size {L.MAPPING_SIZE} B (pack={L.LAYOUT_PACK}); source: {L.LAYOUT_SOURCE}")
     for path, off, size, typ in L.layout_table():
@@ -120,6 +151,13 @@ def main(argv=None) -> int:
         p.set_defaults(fn=fn)
     p = sub.add_parser("inspect-duckdb"); p.add_argument("path"); p.set_defaults(fn=cmd_inspect)
     p = sub.add_parser("layout"); p.set_defaults(fn=cmd_layout)
+    p = sub.add_parser("duckdb-report", help="local schema/quality report of a real LMU .duckdb (nothing uploaded)")
+    p.add_argument("path"); p.add_argument("--out"); p.set_defaults(fn=cmd_duckdb_report)
+    p = sub.add_parser("setup-inspect", help="inspect a real LMU setup file (or list the .svm files found); keeps a verbatim copy")
+    p.add_argument("path", nargs="?"); p.add_argument("--out"); p.set_defaults(fn=cmd_setup_inspect)
+    p = sub.add_parser("verify-lmu", help="real-LMU verification run + sanitized report (run on the Windows PC)")
+    p.add_argument("--seconds", type=int, default=60); p.add_argument("--out"); p.add_argument("--shm-path")
+    p.set_defaults(fn=cmd_verify)
     args = ap.parse_args(argv)
     return args.fn(args)
 

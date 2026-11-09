@@ -50,6 +50,11 @@ MIGRATIONS: list[tuple[int, str]] = [
         original_path TEXT, name TEXT, raw_json TEXT NOT NULL      -- verbatim copy; originals are never modified
     );
     """),
+    (4, """
+    ALTER TABLE setups ADD COLUMN raw_text TEXT;     -- byte-faithful text of the original setup file (when it came from a file)
+    ALTER TABLE setups ADD COLUMN sha256 TEXT;
+    ALTER TABLE setups ADD COLUMN fmt TEXT;          -- json | svm | other
+    """),
 ]
 
 

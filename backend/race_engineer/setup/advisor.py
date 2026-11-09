@@ -67,12 +67,23 @@ def flatten(raw, prefix="") -> tuple[list[Param], list[dict]]:
 
 def import_setup(catalog: Catalog, raw: dict | str, source: str, name: str | None = None, session_id: str | None = None,
                  original_path: str | None = None) -> dict:
+    """JSON setups are parsed; INI-style (.svm) text is kept byte-faithful in raw_text and parsed into sections. Anything else: 422."""
+    import hashlib
+    from .inspect import detect_format, parse_svm
+    raw_text, fmt = None, "json"
     if isinstance(raw, str):
-        raw = json.loads(raw)
+        fmt = detect_format(raw)
+        if fmt == "json":
+            raw_text, raw = raw, json.loads(raw.lstrip("\ufeff"))
+        elif fmt == "svm":
+            raw_text, raw = raw, {"format": "svm", **parse_svm(raw)}
+        else:
+            raise ValueError("unrecognised setup format (expected JSON or rFactor-style .svm text)")
     sid = uuid.uuid4().hex
+    sha = hashlib.sha256(raw_text.encode("utf-8")).hexdigest() if raw_text else None
     with catalog.db:
-        catalog.db.execute("INSERT INTO setups(id,imported_at,session_id,source,original_path,name,raw_json) VALUES (?,?,?,?,?,?,?)",
-                           (sid, time.time(), session_id, source, original_path, name, json.dumps(raw)))
+        catalog.db.execute("INSERT INTO setups(id,imported_at,session_id,source,original_path,name,raw_json,raw_text,sha256,fmt) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                           (sid, time.time(), session_id, source, original_path, name, json.dumps(raw), raw_text, sha, fmt))
     params, loose = flatten(raw)
     return {"id": sid, "parameters_with_limits": len(params), "other_values": len(loose),
             "warning": None if params else "no parameter with verified min/max limits found: the advisor cannot propose numeric changes for this setup"}
