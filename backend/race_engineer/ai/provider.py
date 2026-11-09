@@ -117,6 +117,9 @@ class ProviderChain:
 def from_settings(cfg: dict | None) -> ProviderChain | None:
     if not cfg or not cfg.get("enabled"):
         return None
+    if cfg.get("mode") == "free_multi":      # NVIDIA -> Groq -> local; see ai/providers
+        from .providers.chain import ManagerChain, get_manager
+        return ManagerChain(get_manager(cfg.get("free_multi")))
     ps = []
     for p in cfg.get("providers", []):
         if p["type"] == "openai_compat":

@@ -126,6 +126,20 @@ def cmd_setup_inspect(args) -> int:
     return 0
 
 
+def cmd_ai_test(args) -> int:
+    from .ai.providers import selftest
+    from .ai.providers.chain import get_manager
+    rep = selftest.run(get_manager(), send=not args.no_send)
+    print(json.dumps(rep, indent=2, default=str))
+    return 0 if any(r.get("ok") for r in rep["routes"]) else 2
+
+
+def cmd_endurance_sim(args) -> int:
+    from .synthetic.endurance_sim import run
+    rep = run(hours=args.hours, out_dir=args.out, seed=args.seed)
+    return 0 if all(v in (True, None) for v in rep["checks"].values()) else 2
+
+
 def cmd_layout(args) -> int:
     print(f"# mapping '{L.LMU_SHARED_MEMORY_NAME}' expected size {L.MAPPING_SIZE} B (pack={L.LAYOUT_PACK}); source: {L.LAYOUT_SOURCE}")
     for path, off, size, typ in L.layout_table():
@@ -155,6 +169,11 @@ def main(argv=None) -> int:
     p.add_argument("path"); p.add_argument("--out"); p.set_defaults(fn=cmd_duckdb_report)
     p = sub.add_parser("setup-inspect", help="inspect a real LMU setup file (or list the .svm files found); keeps a verbatim copy")
     p.add_argument("path", nargs="?"); p.add_argument("--out"); p.set_defaults(fn=cmd_setup_inspect)
+    p = sub.add_parser("ai-test", help="one real minimal request per configured FREE provider route (keys from env/Credential Manager)")
+    p.add_argument("--no-send", action="store_true", help="only check keys and model listing"); p.set_defaults(fn=cmd_ai_test)
+    p = sub.add_parser("endurance-sim", help="accelerated SYNTHETIC endurance simulation with fake AI providers")
+    p.add_argument("--hours", type=float, default=24.0); p.add_argument("--out", default="."); p.add_argument("--seed", type=int, default=7)
+    p.set_defaults(fn=cmd_endurance_sim)
     p = sub.add_parser("verify-lmu", help="real-LMU verification run + sanitized report (run on the Windows PC)")
     p.add_argument("--seconds", type=int, default=60); p.add_argument("--out"); p.add_argument("--shm-path")
     p.set_defaults(fn=cmd_verify)

@@ -289,8 +289,42 @@ def create_app(engine: AcquisitionEngine, catalog: Catalog, *, lan_enabled: bool
         cfg = catalog.get_setting("ai") or {"enabled": False, "providers": []}
         return {**cfg, "note": "API keys are never stored: set the environment variable named in api_key_env."}
 
+    @app.get("/api/ai/providers")
+    def ai_providers():
+        from ..ai.providers.chain import get_manager
+        from ..ai.providers.credentials import key_status
+        m = get_manager((catalog.get_setting("ai") or {}).get("free_multi"), data_dir_provider())
+        return clean({"keys": {p: key_status(p) for p in ("nvidia", "groq")}, **m.status()})
+
+    @app.put("/api/ai/providers/key")
+    def ai_key_put(body: dict):
+        """Stores the key ONLY in the OS credential store (Windows Credential Manager). The key is never echoed, logged or kept."""
+        from ..ai.providers.credentials import store_key, key_status
+        prov = body.get("provider")
+        if prov not in ("nvidia", "groq") or not isinstance(body.get("key"), str) or len(body["key"]) < 8:
+            raise HTTPException(422, "provider must be nvidia|groq and key a non-empty string")
+        res = store_key(prov, body["key"])
+        body["key"] = None
+        return {**res, "status": key_status(prov)}
+
+    @app.delete("/api/ai/providers/key/{provider}")
+    def ai_key_delete(provider: str):
+        from ..ai.providers.credentials import delete_key, key_status
+        if provider not in ("nvidia", "groq"):
+            raise HTTPException(404)
+        return {"deleted": delete_key(provider), "status": key_status(provider)}
+
+    @app.post("/api/ai/providers/test")
+    def ai_providers_test():
+        from ..ai.providers import selftest
+        from ..ai.providers.chain import get_manager
+        m = get_manager((catalog.get_setting("ai") or {}).get("free_multi"), data_dir_provider())
+        return clean(selftest.run(m))
+
     @app.put("/api/ai/settings")
     def ai_put(cfg: dict):
+        if cfg.get("mode") == "free_multi" and any(k in str(cfg) for k in ("api_key\"", "'api_key'", "'key'", "'token'")):
+            raise HTTPException(422, "do not send secrets in settings")
         for p in cfg.get("providers", []):
             if p.get("type") not in ("openai_compat", "anthropic") or "model" not in p:
                 raise HTTPException(422, "provider needs type openai_compat|anthropic and model")

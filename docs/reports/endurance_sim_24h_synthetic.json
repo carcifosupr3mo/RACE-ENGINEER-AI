@@ -1,0 +1,197 @@
+{
+  "SYNTHETIC": true,
+  "simulated_hours": 24.0,
+  "wall_seconds": 10.6,
+  "seed": 7,
+  "samples_generated": 864000,
+  "samples_ingested": 864000,
+  "samples_analysed_locally": 144001,
+  "laps_generated": 863,
+  "laps_in_memory": 863,
+  "stints_in_memory": 66,
+  "pit_stops_generated": 66,
+  "events_stored": 1291,
+  "ai": {
+    "requests_submitted": 622,
+    "enqueued_by_pipeline": 620,
+    "answered": 608,
+    "accepted": 585,
+    "rejected_ungrounded_numbers": 23,
+    "http_calls_total": 703,
+    "http_calls_ok": 608,
+    "http_calls_during_total_outage": 80,
+    "tokens_total_reported": 127651,
+    "queue": {
+      "submitted": 622,
+      "dropped_dup": 2,
+      "superseded": 8,
+      "dropped_stale": 4,
+      "dropped_overflow": 0,
+      "done": 608,
+      "retried": 58,
+      "rate_capped": 0,
+      "status": {
+        "done": 608,
+        "dropped_stale": 4
+      }
+    },
+    "manager": {
+      "requests": 666,
+      "served": 608,
+      "fallbacks": 124,
+      "local_fallbacks": 58,
+      "errors": {
+        "server": 9,
+        "network": 30,
+        "rate_limit": 2,
+        "auth": 4,
+        "timeout": 50
+      },
+      "by_route": {
+        "nvidia:nvidia/nemotron-3.5-lightning-30b-a3b": {
+          "ok": 484,
+          "err": 42,
+          "tokens": 101663
+        },
+        "groq:openai/gpt-oss-120b": {
+          "ok": 124,
+          "err": 28,
+          "tokens": 25988
+        },
+        "groq:qwen/qwen3.8-27b": {
+          "ok": 0,
+          "err": 25,
+          "tokens": 0
+        }
+      }
+    },
+    "http_status_histogram": {
+      "ok": 608,
+      "503": 9,
+      "drop": 30,
+      "429": 2,
+      "401": 4,
+      "timeout": 50
+    },
+    "all_routes_unavailable_s": 2498,
+    "route_health": {
+      "nvidia:nvidia/nemotron-3.5-lightning-30b-a3b": {
+        "state": "ok",
+        "consecutive_failures": 0,
+        "retry_in_s": 0,
+        "last_error": null,
+        "successes": 159,
+        "failures": 0,
+        "latency_ema_s": 0.0,
+        "total_down_s": 0.0
+      },
+      "groq:openai/gpt-oss-120b": {
+        "state": "unknown",
+        "consecutive_failures": 0,
+        "retry_in_s": 0,
+        "last_error": null,
+        "successes": 0,
+        "failures": 0,
+        "latency_ema_s": null,
+        "total_down_s": 0.0
+      },
+      "groq:qwen/qwen3.8-27b": {
+        "state": "unknown",
+        "consecutive_failures": 0,
+        "retry_in_s": 0,
+        "last_error": null,
+        "successes": 0,
+        "failures": 0,
+        "latency_ema_s": null,
+        "total_down_s": 0.0
+      }
+    }
+  },
+  "summaries_by_source": {
+    "ai": 585,
+    "local": 622,
+    "ai/rejected_ungrounded": 23
+  },
+  "local_summaries": 622,
+  "restarts": [
+    {
+      "at_h": 13.0,
+      "before": {
+        "events": 700,
+        "summaries": 658,
+        "laps": 467,
+        "stints": 35,
+        "pending": 0,
+        "laps_gen": 467
+      },
+      "after": {
+        "events": 700,
+        "summaries": 658,
+        "laps": 467,
+        "stints": 35,
+        "pending": 0
+      },
+      "memory_identical": true,
+      "queue_pending_recovered": true
+    },
+    {
+      "at_h": 18.0,
+      "before": {
+        "events": 968,
+        "summaries": 912,
+        "laps": 647,
+        "stints": 49,
+        "pending": 0,
+        "laps_gen": 647
+      },
+      "after": {
+        "events": 968,
+        "summaries": 912,
+        "laps": 647,
+        "stints": 49,
+        "pending": 0
+      },
+      "memory_identical": true,
+      "queue_pending_recovered": true
+    }
+  ],
+  "memory_mb": {
+    "rss_start": 53.671875,
+    "rss_hourly": [
+      54.3,
+      54.5,
+      54.7,
+      54.8,
+      55.0,
+      55.1,
+      55.2,
+      55.3,
+      55.4,
+      55.4,
+      55.5,
+      55.6,
+      55.7,
+      55.7,
+      55.8,
+      55.9,
+      55.9,
+      56.0,
+      56.1,
+      56.2,
+      56.2,
+      56.3,
+      56.4
+    ],
+    "rss_end": 57.3
+  },
+  "pending_at_end": 0,
+  "checks": {
+    "no_sample_lost_before_detector": true,
+    "all_completed_laps_persisted": true,
+    "memory_survived_every_restart": true,
+    "calls_bounded": true,
+    "no_calls_flood_during_total_outage": true,
+    "rss_growth_under_100mb": true,
+    "local_summary_for_every_ai_request": true
+  }
+}
