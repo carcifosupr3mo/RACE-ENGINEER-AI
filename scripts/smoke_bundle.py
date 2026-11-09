@@ -62,7 +62,7 @@ def main():
     r = run(["endurance-sim", "--hours", "1", "--out", str(data / "sim")], 300); rec("cli endurance-sim 1h", r.returncode == 0, r.stdout[-200:] + r.stderr[-200:])
 
     port = free_port()
-    p = subprocess.Popen(cli + ["serve", "--synthetic", "constant", "--laps", "3", "--port", str(port)], env=env,
+    p = subprocess.Popen(cli + ["serve", "--synthetic", "constant", "--laps", "2", "--port", str(port)], env=env,
                          stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     base = f"http://127.0.0.1:{port}"
     try:
@@ -88,8 +88,16 @@ def main():
             prov = json.loads(get(base + "/api/ai/providers")[1])
             rec("/api/ai/providers reports key status without any key value", "keys" in prov and "nvapi" not in json.dumps(prov) and "gsk_" not in json.dumps(prov))
             rec("/api/endurance/status", "memory" in json.loads(get(base + "/api/endurance/status")[1]))
-            if sess:
-                sid = sess[0]["id"]
+            fin = []
+            for _ in range(120):                                     # chat needs a finished session (the live one answers 409)
+                fin = [x for x in json.loads(get(base + "/api/sessions")[1]) if x["status"] != "recording" and x["samples"] > 0]
+                if fin:
+                    break
+                time.sleep(1)
+            if not fin:
+                rec("grounded chat answers (rules engine)", False, "no finished session appeared")
+            if fin:
+                sid = fin[0]["id"]
                 req = urllib.request.Request(base + "/api/chat", data=json.dumps({"session_id": sid, "question": "come sono andati i miei giri?"}).encode(),
                                              headers={"content-type": "application/json"}, method="POST")
                 try:
