@@ -26,6 +26,7 @@ from ..ai import chat as ai_chat
 from ..analysis import driver as drv
 from ..analysis.tyrefuel import fuel_report, tyre_report
 from ..analysis.laps import load_session, segment_laps, summarize
+from ..setup import advisor as setup_advisor
 from ..importers.session_import import import_lmu_duckdb
 from ..storage.catalog import Catalog
 from ..storage.paths import data_dir
@@ -297,6 +298,28 @@ def create_app(engine: AcquisitionEngine, catalog: Catalog, *, lan_enabled: bool
                 raise HTTPException(422, "do not send secrets: use api_key_env (environment variable name)")
         catalog.put_setting("ai", cfg)
         return {"ok": True}
+
+    @app.post("/api/setups/import")
+    def setup_import(body: dict):
+        """Import a setup JSON (body.raw) or the CarSetup blob of an LMU DuckDB (body.duckdb_path). Never writes to originals."""
+        try:
+            if body.get("duckdb_path"):
+                p = Path(body["duckdb_path"])
+                if not _allowed(p) or not p.is_file():
+                    raise HTTPException(404, "file not in the LMU telemetry folder")
+                return setup_advisor.import_from_duckdb_metadata(catalog, str(p), body.get("session_id"))
+            if "raw" in body:
+                return setup_advisor.import_setup(catalog, body["raw"], "manual_json", body.get("name"), body.get("session_id"))
+        except ValueError as e:
+            raise HTTPException(422, str(e))
+        raise HTTPException(422, "provide raw or duckdb_path")
+
+    @app.get("/api/setups/{setup_id}/advice")
+    def setup_advice(setup_id: str, session_id: str, lap: int, ref: int | None = None):
+        if setup_advisor.get_setup(catalog, setup_id) is None:
+            raise HTTPException(404, "unknown setup")
+        res = compare_api(session_id, lap, ref)
+        return clean(setup_advisor.advise(catalog, setup_id, res["findings"]))
 
     @app.get("/api/tracks/profile")
     def get_profile(track: str):

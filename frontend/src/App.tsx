@@ -6,12 +6,13 @@ import LapAnalyzer from './components/LapAnalyzer'
 import Engineer from './components/Engineer'
 import TyreFuel from './components/TyreFuel'
 import Driver from './components/Driver'
+import SetupAdvisor from './components/SetupAdvisor'
 import TrackAnalysis from './components/TrackAnalysis'
 
 const SECTIONS: [string, string, number | null][] = [
   ['overview', 'Overview', null], ['live', 'Live Telemetry', null], ['sessions', 'Sessions', null],
   ['laps', 'Lap Analyzer', null], ['track', 'Track Analysis', null], ['ai', 'Race Engineer AI', null],
-  ['setup', 'Setup Advisor', 5], ['tyre', 'Tyre & Fuel', null], ['driver', 'Driver Development', null], ['settings', 'Settings', null],
+  ['setup', 'Setup Advisor', null], ['tyre', 'Tyre & Fuel', null], ['driver', 'Driver Development', null], ['settings', 'Settings', null],
 ]
 
 function Planned({ phase, name }: { phase: number; name: string }) {
@@ -38,6 +39,7 @@ export default function App() {
         {sec === 'live' && <Live />}
         {sec === 'sessions' && <Sessions onOpen={openLaps} />}
         {sec === 'laps' && <LapAnalyzer sessionId={session} onPick={setSession} />}
+        {sec === 'setup' && <SetupAdvisor sessionId={session} onPick={setSession} />}
         {sec === 'track' && <TrackAnalysis sessionId={session} onPick={setSession} />}
         {sec === 'ai' && <Engineer sessionId={session} onPick={setSession} />}
         {sec === 'tyre' && <TyreFuel sessionId={session} onPick={setSession} />}

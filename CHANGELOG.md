@@ -1,4 +1,9 @@
 # CHANGELOG
+## 0.3.0 — Fasi 4-9 (parziali, vedi ROADMAP)
+- AI: base fatti, ingegnere a regole, provider-agnostic (OpenAI-compatibile/Anthropic), budget/timeout/fallback, validatore anti-allucinazione, chat persistente.
+- Tyre & Fuel, Driver Development (storico, obiettivi, allenamenti), Setup Advisor conservativo, migrazione SQLite 3.
+- UI: Race Engineer AI, Tyre & Fuel, Driver Development, Track Analysis (editor curve), Setup Advisor.
+- Shell desktop PySide6 (tray, notifiche, chiusura controllata), spec PyInstaller e `scripts/build.py`.
 ## 0.2.0 — Fasi 2/3
 - Giri completi/incompleti/invalidi, tempi con origine, riepilogo solo su giri validi.
 - Allineamento per distanza con controlli di qualità; rilevazione curve provvisorie; profili circuito (SQLite migrazione 2).

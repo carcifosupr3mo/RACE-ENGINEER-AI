@@ -26,6 +26,10 @@ Un solo backend (Python) per web e desktop; la shell desktop PySide6 (Fase 8) ca
 | `storage/` | SQLite (sessioni, migrazioni, backup, recupero), DuckDB per campioni (file per sessione) |
 | `importers/lmu_duckdb.py` | ispezione/lettura in sola lettura dei DuckDB nativi |
 | `synthetic/` | simulatore deterministico + "fake game" che scrive nel layout reale + fixture DuckDB |
+| `analysis/` | giri, allineamento, curve, confronto, tyre/fuel, driver development |
+| `ai/` | fatti, ingegnere a regole, provider LLM, validatore, chat |
+| `setup/` | import e advisor setup (conservativo) |
+| `desktop/` | shell PySide6 + Qt WebEngine, tray |
 | `api/` | FastAPI, WebSocket `/ws/live`, UI diagnostica statica |
 
 ## Decisioni e deviazioni dalla proposta (motivate)

@@ -7,12 +7,12 @@ Una fase è "completata" solo se i criteri di accettazione sono rispettati **con
 | 1 Acquisizione Shared Memory | 🟡 implementata, **non accettata** | criterio "acquisisce dati reali" NON soddisfatto: serve LMU su Windows |
 | 2 Registrazione e sessioni | ✅ implementata e testata con dati sintetici | giri completi/incompleti/invalidi, import DuckDB LMU → sessione, profili circuito; **non verificata su LMU reale** |
 | 3 Lap Analyzer + Visualizer | ✅ implementata e testata con dati sintetici (pytest, vitest, Playwright) | manca editor grafico curve, selezione di punto/curva avanzata; **non validata su dati LMU reali** |
-| 4 Race Engineer AI | ⬜ | solo dopo Fase 3; vedi [AI-GROUNDING](docs/AI-GROUNDING.md) |
-| 5 Setup Advisor | ⬜ | usare `metadata.CarSetup` dei DuckDB e file setup reali |
-| 6 Tyre & Fuel | ⬜ | |
-| 7 Driver Development | ⬜ | |
-| 8 Desktop + Web definitivi | ⬜ | PySide6, tray, LAN opzionale |
-| 9 Ottimizzazione/packaging | ⬜ | PyInstaller |
+| 4 Race Engineer AI | ✅ implementata, testata con dati sintetici e provider finti | ingegnere a regole + LLM opzionale validato; **mai provato con un LLM reale** |
+| 5 Setup Advisor | 🟡 parziale | import verbatim, parser generico, proposte solo con limiti min/max verificati nel setup; **formato setup LMU reale non verificato**; mancano dati di comportamento (sotto/sovrasterzo) per correlazioni più forti |
+| 6 Tyre & Fuel | ✅ implementata, testata con dati sintetici | consumo su giri puliti, piano carburante con margine manuale, evoluzione gomme; non verificata su LMU |
+| 7 Driver Development | ✅ implementata, testata con dati sintetici | storico giorno/settimana/mese, obiettivi, allenamenti dai punti deboli misurati |
+| 8 Desktop + Web definitivi | 🟡 vedi report | shell PySide6 + tray + notifiche scritta; verifica headless su Linux (vedi TESTING); **mai eseguita su Windows**; LAN opzionale via `--lan` |
+| 9 Ottimizzazione/packaging | 🟡 parziale | spec PyInstaller + `scripts/build.py`; bundle Linux verificato (CLI, analisi, chat); **.exe Windows e installer NON prodotti** (serve Windows) |
 
 ## Fase 1 — criteri di accettazione
 | Criterio | Stato |

@@ -10,3 +10,5 @@ provenance, <73 canali>)` (vedi TELEMETRY-FORMAT §3). I DuckDB originali di LMU
 
 Non ancora implementati: giri/settori (Fase 2), profili circuito, setup importati, conversazioni, report, profilo pilota.
 Provenienza: enum `lmu_shm, duckdb_import, computed, manual, unavailable, synthetic` (estensione della lista richiesta: `synthetic`).
+
+Migrazioni: 1 `sessions`; 2 `track_profiles` (profili curve confermati); 3 `goals`, `messages` (chat), `settings` (AI, senza segreti), `setups` (copia verbatim, originali mai modificati).

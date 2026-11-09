@@ -13,3 +13,8 @@ Mai dentro la cartella di LMU. Override ricerca gioco: `LMU_GAME_DIR`.
 LMU: Settings → Gameplay → **Enable Plugins** = ON, poi riavvio completo (il software non modifica mai questa impostazione).
 Accesso LAN: `serve --lan` stampa un token; senza il flag il server ascolta solo su 127.0.0.1.
 Packaging EXE e installer: Fase 9 (non implementato).
+
+## Build / release
+`python scripts/build.py` (frontend → test → PyInstaller → zip). Su **Windows** produce `dist/RaceEngineerAI/RaceEngineerAI.exe` (desktop, serve `pip install PySide6-Essentials`)
+e `race-engineer-cli.exe`. Un .exe Windows non può essere prodotto da Linux. Installer (MSI/Inno Setup): non implementato.
+Desktop da sorgente: `python scripts/run_desktop.py [--synthetic mixed]`.
