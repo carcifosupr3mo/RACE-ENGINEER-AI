@@ -20,3 +20,8 @@ tr.dim{opacity:.5} .tag{font-size:10px;padding:1px 6px;border-radius:2px;border:
 .src{font-size:9px;font-style:normal;border:1px solid var(--line);padding:0 4px;border-radius:2px} .src.lmu_shm{color:var(--ok)} .src.computed{color:var(--acc)} .src.synthetic{color:var(--syn);border-color:var(--syn)}
 .cols{display:grid;grid-template-columns:1fr 280px;gap:14px} @media(max-width:1000px){.cols{grid-template-columns:1fr}} .charts{min-width:0}
 .lapbox{margin-bottom:10px} code{background:#0a0c0f;padding:1px 5px}
+.inl{display:inline-flex;gap:6px;align-items:center;color:var(--mut)} input{background:#0e1216;color:var(--tx);border:1px solid var(--line);padding:5px 8px;border-radius:3px}
+.chips{display:flex;flex-wrap:wrap;gap:6px} .msg{margin-top:14px;border-top:1px solid var(--line);padding-top:8px} .you{color:var(--acc);font-weight:600;margin-bottom:6px}
+.ans h4{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--mut);margin:10px 0 3px} .ans ul{margin:0;padding-left:18px} .warn{color:var(--warn)}
+.tag.conf-bassa{color:var(--bad);border-color:var(--bad)} .tag.conf-media{color:var(--warn);border-color:var(--warn)} .tag.conf-alta{color:var(--ok);border-color:var(--ok)}
+details{margin-top:8px} summary{cursor:pointer;color:var(--mut)}
