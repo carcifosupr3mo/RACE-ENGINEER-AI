@@ -289,6 +289,28 @@ def create_app(engine: AcquisitionEngine, catalog: Catalog, *, lan_enabled: bool
         cfg = catalog.get_setting("ai") or {"enabled": False, "providers": []}
         return {**cfg, "note": "API keys are never stored: set the environment variable named in api_key_env."}
 
+    def endurance():
+        svc = getattr(app.state, "endurance", None)
+        if svc is None:
+            from ..endurance.service import EnduranceService
+            svc = app.state.endurance = EnduranceService(engine, catalog, data_dir_provider())
+        return svc
+
+    if engine.data_root is not None:
+        endurance()          # start local endurance analysis together with the app (never touches acquisition on failure)
+
+    @app.get("/api/endurance/status")
+    def endurance_status():
+        return clean(endurance().status())
+
+    @app.get("/api/endurance/summaries")
+    def endurance_summaries(session_id: str | None = None, kind: str | None = None, limit: int = 50):
+        return clean(endurance().mem.summaries(session_id, kind, min(limit, 500)))
+
+    @app.get("/api/endurance/events")
+    def endurance_events(session_id: str, since: int = 0):
+        return clean(endurance().mem.events_since(session_id, since))
+
     @app.get("/api/ai/providers")
     def ai_providers():
         from ..ai.providers.chain import get_manager

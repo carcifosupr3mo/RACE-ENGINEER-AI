@@ -51,6 +51,12 @@ const check = (name, ok, extra = '') => { console.log((ok ? 'PASS ' : 'FAIL ') +
   await p.fill('[data-testid=track] tbody tr:first-child input[placeholder="es. T1"]', 'T1'); await p.click('[data-testid=save-profile]')
   await p.waitForFunction(() => /Profilo salvato/.test(document.querySelector('[data-testid=track-msg]')?.textContent || ''))
   check('track profile saved', true)
+  // --- AI settings (free providers): no keys in this environment -> must say so, never show a key, test sends nothing
+  await p.click('[data-testid=nav-settings]'); await p.waitForSelector('[data-testid=ai-settings]')
+  await p.click('[data-testid=ai-test]'); await p.waitForSelector('[data-testid=ai-test-result]', { timeout: 20000 })
+  const air = await p.textContent('[data-testid=ai-test-result]')
+  check('AI test without keys sends nothing and explains what is missing', /no key configured|NVIDIA_API_KEY|build\.nvidia\.com|console\.groq/i.test(air), air.slice(0, 120))
+  check('key inputs are password fields', (await p.$$('[data-testid=ai-settings] input[type=password]')).length === 2)
   await p.screenshot({ path: process.argv[3] || 'e2e.png', fullPage: true })
   check('no console/page errors', errs.length === 0, JSON.stringify(errs).slice(0, 300))
   await b.close(); process.exit(fail.length ? 1 : 0)

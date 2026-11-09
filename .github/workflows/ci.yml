@@ -18,7 +18,7 @@ jobs:
         with: { node-version: "22" }
       - run: npm ci && npm run build && npm test
         working-directory: frontend
-  windows-bundle:       # the only place a Windows .exe can be produced
+  windows-bundle:       # the only place a Windows .exe can be produced AND smoke-tested on a real Windows machine (without LMU)
     runs-on: windows-latest
     needs: [backend, frontend]
     steps:
@@ -28,6 +28,19 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: "22" }
       - run: pip install -e "backend[dev]" PySide6 PySide6-WebEngine pyinstaller
-      - run: python scripts/build.py --skip-tests
+      - name: Build bundle (+ smoke test of the frozen exe, + installer, + SHA256)
+        run: python scripts/build.py --skip-tests --smoke --installer
+      - name: Install silently, smoke-test the INSTALLED copy, uninstall
+        shell: pwsh
+        run: |
+          $setup = Get-ChildItem dist\RaceEngineerAI-Setup-*.exe | Select-Object -First 1
+          Start-Process $setup.FullName -ArgumentList "/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART","/DIR=$env:RUNNER_TEMP\REAI" -Wait
+          python scripts/smoke_bundle.py "$env:RUNNER_TEMP\REAI"
+          Start-Process "$env:RUNNER_TEMP\REAI\unins000.exe" -ArgumentList "/VERYSILENT" -Wait
       - uses: actions/upload-artifact@v4
-        with: { name: RaceEngineerAI-windows, path: dist/RaceEngineerAI-win32.zip }
+        with:
+          name: RaceEngineerAI-windows
+          path: |
+            dist/RaceEngineerAI-win32.zip
+            dist/RaceEngineerAI-Setup-*.exe
+            dist/SHA256SUMS.txt

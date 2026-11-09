@@ -16,7 +16,7 @@ export default function SetupAdvisor({ sessionId, onPick }: { sessionId: string 
   }, [sessionId])
   const imp = async () => {
     setErr('')
-    try { const raw = JSON.parse(text); const r = await api('/api/setups/import', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ raw, session_id: sessionId }) }); setSetupId(r.id); setInfo(r) }
+    try { let raw: any = text; try { const j = JSON.parse(text); if (j && typeof j === 'object') raw = j } catch { /* not JSON: send the text as is (.svm) */ }; const r = await api('/api/setups/import', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ raw, session_id: sessionId }) }); setSetupId(r.id); setInfo(r) }
     catch (e: any) { setErr('Setup non importato: ' + e.message) }
   }
   const run = async () => {
@@ -26,7 +26,7 @@ export default function SetupAdvisor({ sessionId, onPick }: { sessionId: string 
   return (
     <section className="panel" data-testid="setup">
       <h2>Setup Advisor</h2>
-      <p className="warn">Formato dei setup LMU non verificato: il parser è generico. Nessuna modifica automatica; nessun valore viene proposto senza limiti min/max verificati nel setup stesso.</p>
+      <p className="warn">Formato dei setup LMU non verificato: accetta JSON o testo .svm (copia fedele conservata); il parser è generico. Nessuna modifica automatica; nessun valore viene proposto senza limiti min/max verificati nel setup stesso.</p>
       <div className="toolbar"><SessionPicker value={sessionId} onChange={onPick} /></div>
       <textarea value={text} onChange={e => setText(e.target.value)} rows={6} placeholder="Incolla il JSON del setup (copia: l'originale non viene mai modificato)" style={{ width: '100%' }} data-testid="setup-json" />
       <div className="toolbar"><button onClick={imp} disabled={!text}>Importa</button>

@@ -83,15 +83,47 @@ def run(argv=None) -> int:
     from PySide6.QtWebEngineWidgets import QWebEngineView
     from PySide6.QtWidgets import QApplication, QMainWindow, QMenu, QSystemTrayIcon
 
+    from PySide6.QtCore import QDir, QLockFile
+    from PySide6.QtWidgets import QMessageBox
+    from ..ai.providers.credentials import RedactFilter
+    from ..storage.paths import data_dir
+    import logging
+    import logging.handlers
+    import traceback
+    logdir = data_dir() / "logs"; logdir.mkdir(exist_ok=True)
+    fh = logging.handlers.RotatingFileHandler(logdir / "app.log", maxBytes=2_000_000, backupCount=3, encoding="utf-8")
+    fh.addFilter(RedactFilter())          # an API key can never reach the log file
+    logging.basicConfig(level=logging.INFO, handlers=[fh], format="%(asctime)s %(levelname)s %(name)s %(message)s")
+    log = logging.getLogger("race_engineer.desktop")
+
     app = QApplication(sys.argv[:1])
     app.setApplicationName("Race Engineer AI")
+    lock = QLockFile(QDir.temp().filePath("race_engineer_ai_%s.lock" % ("smoke" if args.smoke else "app")))
+    lock.setStaleLockTime(15000)
+    if not lock.tryLock(100):             # a second instance would fight over the shared memory reader and data files
+        if not args.smoke:
+            QMessageBox.information(None, "Race Engineer AI", "Race Engineer AI è già in esecuzione (controlla l'icona nella barra di sistema).")
+        return 3
+
+    def excepthook(et, ev, tb):
+        log.error("unhandled: %s", "".join(traceback.format_exception(et, ev, tb)))
+        if not args.smoke:
+            QMessageBox.warning(None, "Race Engineer AI", f"Errore imprevisto: {ev}\nDettagli in {logdir / 'app.log'}")
+    sys.excepthook = excepthook
     app.setQuitOnLastWindowClosed(False)
     pm = QPixmap(64, 64); pm.fill(Qt.GlobalColor.transparent)
     pt = QPainter(pm); pt.setRenderHint(QPainter.RenderHint.Antialiasing); pt.setBrush(QColor("#0b0d10")); pt.setPen(QColor("#38bdf8"))
     pt.drawEllipse(4, 4, 56, 56); pt.setPen(QColor("#e6ebf0")); pt.drawText(pm.rect(), Qt.AlignmentFlag.AlignCenter, "RE"); pt.end()
     icon = QIcon(pm)
 
-    backend = Backend(args.synthetic)
+    try:
+        backend = Backend(args.synthetic)
+    except Exception as e:
+        log.exception("backend failed to start")
+        if not args.smoke:
+            QMessageBox.critical(None, "Race Engineer AI", f"Impossibile avviare il backend: {e}\nDettagli in {logdir / 'app.log'}")
+        print(f"SMOKE backend start failed: {e}")
+        return 1
     win = QMainWindow(); win.setWindowTitle("Race Engineer AI"); win.setWindowIcon(icon); win.resize(1400, 900)
     view = QWebEngineView(); win.setCentralWidget(view); view.load(QUrl(backend.url))
     tray = QSystemTrayIcon(icon, app)
@@ -144,8 +176,24 @@ def run(argv=None) -> int:
             title = {"t": None}
             view.page().runJavaScript("document.querySelector('nav h1') ? document.querySelector('nav h1').textContent : null", lambda v: (title.__setitem__("t", v), report(title["t"])))
 
+        def api_checks() -> dict:
+            import json
+            import urllib.request
+            base = backend.url.rsplit("/app/", 1)[0]
+            out = {}
+            for path in ("/diag", "/api/health", "/api/diagnostics/report", "/api/ai/providers", "/api/endurance/status", "/api/sessions"):
+                try:
+                    with urllib.request.urlopen(base + path, timeout=10) as r:
+                        body = r.read()
+                        out[path] = r.status == 200 and (path == "/diag" or bool(json.loads(body) is not None))
+                except Exception as e:
+                    out[path] = f"{type(e).__name__}: {e}"
+            return out
+
         def report(t):
-            ok = bool(result["loaded"]) and bool(t) and "Race Engineer" in t
+            checks = api_checks()
+            print("SMOKE api", checks)
+            ok = bool(result["loaded"]) and bool(t) and "Race Engineer" in t and all(v is True for v in checks.values())
             print(f"SMOKE loaded={result['loaded']} nav_title={t!r} state={backend.engine.state.value} samples={backend.engine.stats.samples_received}")
             do_quit(); app.exit(0 if ok else 1)
         QTimer.singleShot(8000, finish)

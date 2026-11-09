@@ -86,6 +86,9 @@ class AcquisitionEngine:
         self._thread: threading.Thread | None = None
         self._stop = threading.Event()
         self._was_acquiring = False
+        self.on_sample: list[Callable[[Sample], None]] = []          # listeners (endurance pipeline); errors never reach acquisition
+        self.on_session_start: list[Callable[[str, SessionContext, bool], None]] = []
+        self.on_session_end: list[Callable[[str], None]] = []
 
     # ----------------------------------------------------------------- lifecycle
     def start(self, poll_hz: float = 250.0) -> None:
@@ -219,6 +222,11 @@ class AcquisitionEngine:
         self._rate.append(now)
         if self.recorder:
             self.recorder.add(sample)
+        for fn in self.on_sample:
+            try:
+                fn(sample)
+            except Exception as e:  # a faulty listener must never stop acquisition
+                self._err(f"listener: {type(e).__name__}: {e}")
         self.state = ConnState.ACQUIRING
         self._was_acquiring = True
         return True
@@ -238,6 +246,11 @@ class AcquisitionEngine:
         sid = self.catalog.create_session(source="synthetic" if synthetic else "lmu_shm", is_synthetic=synthetic,
                                           data_path=str(path), ctx=ctx)  # type: ignore[union-attr]
         self.session_id = sid
+        for fn in self.on_session_start:
+            try:
+                fn(sid, ctx, synthetic)
+            except Exception as e:
+                self._err(f"listener: {type(e).__name__}: {e}")
         self._session_base = (self.stats.samples_received, self.stats.samples_lost)
         self.recorder = SessionRecorder(path, sid)
 
@@ -247,6 +260,11 @@ class AcquisitionEngine:
         rec, sid = self.recorder, self.session_id
         self.recorder = None
         rec.close()
+        for fn in self.on_session_end:
+            try:
+                fn(sid)
+            except Exception as e:
+                self._err(f"listener: {type(e).__name__}: {e}")
         base_r, base_l = getattr(self, "_session_base", (0, 0))
         self.catalog.finish_session(sid, self.stats.samples_received - base_r,  # type: ignore[union-attr,arg-type]
                                     self.stats.samples_lost - base_l, complete)

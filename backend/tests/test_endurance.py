@@ -128,3 +128,21 @@ def test_accelerated_simulation_short_run(tmp_path):
     assert all(v in (True, None) for v in rep["checks"].values()), rep["checks"]
     assert rep["restarts"][0]["memory_identical"]
     assert rep["ai"]["accepted"] > 20 and rep["samples_generated"] == 4 * 36000
+
+
+def test_service_wires_engine_to_memory_with_synthetic_game(tmp_path):
+    from race_engineer.acquisition.engine import AcquisitionEngine
+    from race_engineer.endurance.service import EnduranceService
+    from race_engineer.storage.catalog import Catalog
+    from race_engineer.synthetic.game import SyntheticGame
+    cat = Catalog(tmp_path / "c.sqlite")
+    g = SyntheticGame("constant", laps=3)
+    e = AcquisitionEngine(lambda: g.backend, catalog=cat, data_root=tmp_path, process_probe=lambda: True, open_retry_s=0)
+    svc = EnduranceService(e, cat, tmp_path)
+    while g.step():
+        e.poll_once()
+    e.stop()
+    st = svc.status()
+    assert st["memory"]["laps"] >= 2 and st["memory"]["summaries"] >= 1
+    assert st["ai_queue"] is None                       # synthetic sessions / AI disabled: local only, no quota spent
+    assert not [x for x in e.stats.errors if "listener" in x["msg"]]

@@ -8,6 +8,7 @@ import TyreFuel from './components/TyreFuel'
 import Driver from './components/Driver'
 import SetupAdvisor from './components/SetupAdvisor'
 import TrackAnalysis from './components/TrackAnalysis'
+import AiSettings from './components/AiSettings'
 
 const SECTIONS: [string, string, number | null][] = [
   ['overview', 'Overview', null], ['live', 'Live Telemetry', null], ['sessions', 'Sessions', null],
@@ -62,9 +63,10 @@ function Overview({ health, go }: { health: any; go: (s: string) => void }) {
 }
 
 function Settings({ health }: { health: any }) {
-  return (
+  return (<>
     <section className="panel"><h2>Settings</h2>
       <div className="row"><span>Accesso LAN</span><span>{health?.lan_enabled ? 'ATTIVO (token richiesto)' : 'disattivato (solo localhost)'}</span></div>
-      <p className="mut">LAN si attiva solo avviando il backend con <code>--lan</code>. Provider AI, obiettivi e profili: fasi successive.</p>
-    </section>)
+      <p className="mut">LAN si attiva solo avviando il backend con <code>--lan</code>.</p>
+    </section>
+    <AiSettings /></>)
 }
