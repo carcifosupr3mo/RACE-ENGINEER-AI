@@ -1,7 +1,7 @@
 # TESTING
-`cd backend && python -m pytest tests` — 99 test, ~2 min. Frontend: `cd frontend && npm test` (vitest, 4) e, con backend avviato su dati sintetici
-(`RACE_ENGINEER_DATA=<dir> python scripts/seed_synthetic.py mixed`, poi `python -m race_engineer serve --synthetic constant --laps 30`),
-`NODE_PATH=$(npm root -g) node frontend/e2e/e2e.cjs http://127.0.0.1:8765 out.png` (Playwright, 11 controlli: banner sintetico, 7 grafici, mappa, cursore sincronizzato, osservazioni attese, nessun errore console).
+`cd backend && python -m pytest tests` — ~150 test, ~3 min (include `test_validation_tools`, `test_ai_providers` con trasporto HTTP finto, `test_endurance` con simulazione 4 h). Frontend: `cd frontend && npm test` (vitest, 4) e, con backend avviato su dati sintetici
+(`RACE_ENGINEER_DATA=<dir> python scripts/seed_synthetic.py constant mixed`, poi `python -m race_engineer serve --synthetic constant --laps 30`),
+`NODE_PATH=$(npm root -g) node frontend/e2e/e2e.cjs http://127.0.0.1:8765 out.png` (Playwright, 19 controlli incl. pannello AI senza chiavi: banner sintetico, 7 grafici, mappa, cursore sincronizzato, osservazioni attese, nessun errore console).
 
 | Area | File | Natura dei dati |
 |---|---|---|
@@ -24,3 +24,6 @@
 Acquisizione reale LMU; backend Windows `OpenFileMappingW`; file DuckDB reali; rilevamento processo su Windows;
 bundle/exe Windows, installer; AI con LLM reale; tray/notifiche; analisi e frontend su dati reali (solo sintetici).
 **I dati sintetici non dimostrano l'integrazione con LMU.**
+
+## Smoke del bundle / sorgente
+`python scripts/smoke_bundle.py --source` oppure `python scripts/smoke_bundle.py dist/RaceEngineerAI` (CLI, verify-lmu senza LMU = NON verificato, serve sintetico, /app/, /diag, chat a regole, spegnimento, persistenza dopo riapertura, shell desktop). Nessun test qui dice nulla su LMU reale: vedi docs/VALIDATION.md.

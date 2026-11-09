@@ -44,3 +44,6 @@ Un solo backend (Python) per web e desktop; la shell desktop PySide6 (Fase 8) ca
 ## Sicurezza
 Bind su 127.0.0.1; controllo `Host` (anti DNS-rebinding) e `Origin` WS; `--lan` esplicito → token Bearer obbligatorio;
 `/api/duckdb/inspect` accetta solo file `.duckdb` nella cartella Telemetry di LMU. Nessuna esposizione pubblica automatica.
+
+## Validazione, AI gratuita, endurance (0.4.0)
+`lmu/verify.py`+`lmu/header_layout.py` (verifica reale), `importers/diagnostic_report.py`, `setup/inspect.py`, `ai/providers/*` (NVIDIA→Groq→locale), `endurance/*` (rilevatore, memoria, pipeline, servizio agganciato al motore tramite listener che non possono fermare l'acquisizione). Dettagli: docs/AI-PROVIDERS.md, docs/VALIDATION.md.

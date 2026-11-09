@@ -14,6 +14,8 @@ Una fase è "completata" solo se i criteri di accettazione sono rispettati **con
 | 8 Desktop + Web definitivi | 🟡 vedi report | shell PySide6 (tray, notifiche, chiusura controllata) con smoke test headless su Linux (sorgente e bundle congelato); **tray/notifiche non osservate, mai eseguita su Windows**; LAN opzionale via `--lan` |
 | 9 Ottimizzazione/packaging | 🟡 parziale | spec PyInstaller + `scripts/build.py`; bundle Linux verificato (CLI e desktop congelati); **.exe Windows e installer NON prodotti** (serve Windows) |
 
+| 10 Validazione reale Windows / AI gratuita / endurance | 🟡 strumenti pronti, **nessuna verifica reale eseguita** | `verify-lmu`, `duckdb-report`, `setup-inspect`, `ai-test`, AI multi-provider NVIDIA→Groq→locale, pipeline endurance, simulazione 24 h sintetica, installer e smoke in CI; vedi [docs/VALIDATION.md](docs/VALIDATION.md) |
+
 ## Fase 1 — criteri di accettazione
 | Criterio | Stato |
 |---|---|

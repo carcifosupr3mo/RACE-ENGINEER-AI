@@ -18,3 +18,6 @@ Packaging EXE e installer: Fase 9 (non implementato).
 `python scripts/build.py` (frontend → test → PyInstaller → zip). Su **Windows** produce `dist/RaceEngineerAI/RaceEngineerAI.exe` (desktop, serve `pip install -e "backend[desktop]"`; in PySide6 6.12 Qt WebEngine è il wheel separato `PySide6-WebEngine`)
 e `race-engineer-cli.exe`. Un .exe Windows non può essere prodotto da Linux. Installer (MSI/Inno Setup): non implementato.
 Desktop da sorgente: `pip install -e "backend[desktop]"` poi `python scripts/run_desktop.py [--synthetic mixed]` (Linux headless: servono libEGL/libxkbcommon/libnss3… e `--smoke`).
+
+## Windows (artefatti CI)
+Scarica `RaceEngineerAI-windows` dalla CI: `RaceEngineerAI-Setup-<ver>.exe` (installa in %LOCALAPPDATA%\\Programs, non tocca LMU) oppure lo zip; verifica `SHA256SUMS.txt`. Poi segui docs/VALIDATION.md. I dati utente (%LOCALAPPDATA%\\RaceEngineerAI) non vengono rimossi dalla disinstallazione.
