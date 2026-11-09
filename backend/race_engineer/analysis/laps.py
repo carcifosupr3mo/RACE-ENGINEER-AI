@@ -8,7 +8,9 @@ import numpy as np
 
 COLS = ["wall_time", "session_time_s", "lap_number", "lap_dist_m", "speed_kmh", "throttle", "brake", "steering",
         "rpm", "gear", "in_pits", "lap_invalidated", "last_lap_time_s", "fuel_l", "pos_x_m", "pos_z_m", "sector",
-        "provenance"]
+        "ambient_temp_c", "track_temp_c", "cur_sector1_s", "cur_sector2_s", "provenance"] + [
+    f"tyre_{w}_{c}" for w in ("fl", "fr", "rl", "rr")
+    for c in ("pressure_kpa", "temp_left_c", "temp_center_c", "temp_right_c", "carcass_temp_c", "wear", "brake_temp_c")]
 
 
 @dataclass

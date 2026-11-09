@@ -32,6 +32,24 @@ MIGRATIONS: list[tuple[int, str]] = [
         PRIMARY KEY (track, layout)
     );
     """),
+    (3, """
+    CREATE TABLE goals (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, created_at REAL NOT NULL,
+        track TEXT NOT NULL, vehicle TEXT NOT NULL DEFAULT '',
+        metric TEXT NOT NULL,            -- best_lap_s | lap_std_s | slow_corner_loss_s
+        target REAL NOT NULL, baseline REAL, note TEXT, status TEXT NOT NULL DEFAULT 'active'
+    );
+    CREATE TABLE messages (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, conversation TEXT NOT NULL, created_at REAL NOT NULL,
+        role TEXT NOT NULL, session_id TEXT, content_json TEXT NOT NULL
+    );
+    CREATE INDEX idx_messages_conv ON messages(conversation, created_at);
+    CREATE TABLE settings (key TEXT PRIMARY KEY, value_json TEXT NOT NULL);
+    CREATE TABLE setups (
+        id TEXT PRIMARY KEY, imported_at REAL NOT NULL, session_id TEXT, source TEXT NOT NULL,
+        original_path TEXT, name TEXT, raw_json TEXT NOT NULL      -- verbatim copy; originals are never modified
+    );
+    """),
 ]
 
 
@@ -103,6 +121,41 @@ class Catalog:
     def get_session(self, sid: str) -> dict | None:
         r = self.db.execute("SELECT * FROM sessions WHERE id=?", (sid,)).fetchone()
         return dict(r) if r else None
+
+    # --- goals / messages / settings / setups -------------------------------------------------
+    def add_goal(self, track, vehicle, metric, target, baseline=None, note=None) -> int:
+        with self.db:
+            cur = self.db.execute("INSERT INTO goals(created_at,track,vehicle,metric,target,baseline,note) VALUES (?,?,?,?,?,?,?)",
+                                  (time.time(), track, vehicle, metric, target, baseline, note))
+        return cur.lastrowid
+
+    def list_goals(self) -> list[dict]:
+        return [dict(r) for r in self.db.execute("SELECT * FROM goals ORDER BY id DESC")]
+
+    def set_goal_status(self, gid: int, status: str) -> None:
+        with self.db:
+            self.db.execute("UPDATE goals SET status=? WHERE id=?", (status, gid))
+
+    def add_message(self, conversation: str, role: str, content: dict, session_id: str | None = None) -> None:
+        import json
+        with self.db:
+            self.db.execute("INSERT INTO messages(conversation,created_at,role,session_id,content_json) VALUES (?,?,?,?,?)",
+                            (conversation, time.time(), role, session_id, json.dumps(content)))
+
+    def list_messages(self, conversation: str) -> list[dict]:
+        import json
+        return [{**dict(r), "content": json.loads(r["content_json"])} for r in
+                self.db.execute("SELECT * FROM messages WHERE conversation=? ORDER BY id", (conversation,))]
+
+    def get_setting(self, key: str, default=None):
+        import json
+        r = self.db.execute("SELECT value_json FROM settings WHERE key=?", (key,)).fetchone()
+        return json.loads(r[0]) if r else default
+
+    def put_setting(self, key: str, value) -> None:
+        import json
+        with self.db:
+            self.db.execute("INSERT INTO settings VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json", (key, json.dumps(value)))
 
     def integrity_ok(self) -> bool:
         return self.db.execute("PRAGMA integrity_check").fetchone()[0] == "ok"

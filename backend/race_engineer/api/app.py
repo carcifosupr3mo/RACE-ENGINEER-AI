@@ -22,6 +22,9 @@ from ..lmu.discovery import LmuInstall, find_install, is_lmu_process_running
 from ..analysis.align import align_lap
 from ..analysis.compare import compare, consistency
 from ..analysis.corners import apply_profile, detect_corners
+from ..ai import chat as ai_chat
+from ..analysis import driver as drv
+from ..analysis.tyrefuel import fuel_report, tyre_report
 from ..analysis.laps import load_session, segment_laps, summarize
 from ..importers.session_import import import_lmu_duckdb
 from ..storage.catalog import Catalog
@@ -227,6 +230,73 @@ def create_app(engine: AcquisitionEngine, catalog: Catalog, *, lan_enabled: bool
             raise HTTPException(422, "need at least 3 valid laps")
         al = [align_lap(sd, l) for l in ok]
         return clean({"laps": [l.number for l in ok], "corners": consistency(al, detect_corners(al[0]))})
+
+    @app.get("/api/sessions/{sid}/fuel")
+    def fuel_api(sid: str, target_laps: int | None = None, margin_laps: float = 0.5):
+        row, sd, ls = _session(sid)
+        return clean(fuel_report(sd, ls, target_laps, margin_laps))
+
+    @app.get("/api/sessions/{sid}/tyres")
+    def tyres_api(sid: str):
+        row, sd, ls = _session(sid)
+        return clean(tyre_report(sd, ls))
+
+    @app.get("/api/driver/history")
+    def driver_history(period: str = "week", include_synthetic: bool = False):
+        if period not in ("day", "week", "month"):
+            raise HTTPException(422, "period must be day|week|month")
+        return clean(drv.history(catalog, include_synthetic, period))
+
+    @app.get("/api/driver/goals")
+    def goals():
+        return clean([drv.evaluate_goal(catalog, g) for g in catalog.list_goals()])
+
+    @app.post("/api/driver/goals")
+    def add_goal(track: str, metric: str, target: float, vehicle: str = "", note: str | None = None):
+        if metric not in ("best_lap_s", "lap_std_s", "slow_corner_loss_s"):
+            raise HTTPException(422, "unknown metric")
+        base = None
+        rows = [r for r in catalog.list_sessions(True) if r["track"] == track and r["status"] != "recording" and r["samples"]]
+        vals = []
+        for r in rows:
+            st = drv.session_stats(r)
+            v = {"best_lap_s": st["summary"]["best_time_s"], "lap_std_s": st["summary"]["std_time_s"]}.get(metric)
+            if v is not None:
+                vals.append(v)
+        base = min(vals) if vals else None
+        return {"id": catalog.add_goal(track, vehicle, metric, target, base, note), "baseline": base}
+
+    @app.get("/api/sessions/{sid}/training")
+    def training(sid: str):
+        _session(sid)
+        return clean(drv.training_plan(catalog, sid))
+
+    @app.post("/api/chat")
+    def chat(body: dict):
+        sid, q = body.get("session_id"), (body.get("question") or "").strip()
+        if not sid or not q:
+            raise HTTPException(422, "session_id and question are required")
+        _session(sid)
+        return clean(ai_chat.ask(catalog, sid, q, conversation=body.get("conversation", "default")))
+
+    @app.get("/api/chat/history")
+    def chat_history(conversation: str = "default"):
+        return catalog.list_messages(conversation)
+
+    @app.get("/api/ai/settings")
+    def ai_get():
+        cfg = catalog.get_setting("ai") or {"enabled": False, "providers": []}
+        return {**cfg, "note": "API keys are never stored: set the environment variable named in api_key_env."}
+
+    @app.put("/api/ai/settings")
+    def ai_put(cfg: dict):
+        for p in cfg.get("providers", []):
+            if p.get("type") not in ("openai_compat", "anthropic") or "model" not in p:
+                raise HTTPException(422, "provider needs type openai_compat|anthropic and model")
+            if any(k in p for k in ("api_key", "key", "token")):
+                raise HTTPException(422, "do not send secrets: use api_key_env (environment variable name)")
+        catalog.put_setting("ai", cfg)
+        return {"ok": True}
 
     @app.get("/api/tracks/profile")
     def get_profile(track: str):
