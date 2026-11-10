@@ -1,0 +1,39 @@
+name: release
+# Manual: publishes the Windows files built by a CI run as a GitHub pre-release.
+# It re-verifies SHA256SUMS.txt before publishing. It does not build or change anything else.
+on:
+  workflow_dispatch:
+    inputs:
+      run_id: { description: "CI run id holding the RaceEngineerAI-windows artifact", required: true }
+      tag: { description: "Release tag", required: true, default: "v0.6.2-rc1" }
+      commit: { description: "Commit the run was built from", required: true }
+permissions:
+  contents: write
+  actions: read
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Download CI artifact
+        run: gh run download "${{ inputs.run_id }}" --repo "${{ github.repository }}" -n RaceEngineerAI-windows -D dist
+      - name: Verify checksums
+        run: cd dist && sha256sum -c SHA256SUMS.txt && ls -l
+      - name: Create pre-release
+        run: |
+          cd dist
+          cat > notes.md <<NOTES
+          Build Windows prodotta dalla CI (run ${{ inputs.run_id }}, commit ${{ inputs.commit }}). Checksum verificati prima della pubblicazione.
+
+          **Stato di verifica:** testata in CI su Windows con dati SINTETICI. NON ancora verificata con Le Mans Ultimate reale.
+
+          - RaceEngineerAI-win32.zip: versione portatile, estrai e avvia AVVIA_CON_DISPLAY.bat
+          - RaceEngineerAI-Setup-0.1.0.exe: installer
+          - SHA256SUMS.txt
+
+          Gli eseguibili non sono firmati: SmartScreen puo avvisare. Procedura di test: docs/UNIFIED_DRIVING_DISPLAY.md sezione 11.2.
+          NOTES
+          gh release create "${{ inputs.tag }}" --repo "${{ github.repository }}" --target "${{ inputs.commit }}" --prerelease \
+            --title "${{ inputs.tag }} (Windows, test con LMU)" --notes-file notes.md \
+            RaceEngineerAI-win32.zip RaceEngineerAI-Setup-0.1.0.exe SHA256SUMS.txt
