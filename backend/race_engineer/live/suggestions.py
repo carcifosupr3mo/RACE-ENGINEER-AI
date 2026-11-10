@@ -15,6 +15,8 @@ from ..analysis.driving import LABELS_IT
 from ..analysis.session_mode import GROUP_OF, weight
 
 MIN_SCORE = 0.10
+MIN_REPEAT = 2             # a finding must be present in >= 2 of the last 3 analysed laps: one lap is indistinguishable from normal lap-to-lap variation
+REPEAT_WINDOW = 3
 HOLD_S = 6.0
 APPROACH_M = 700.0
 LEVEL_RANK = {"critical": 3, "warn": 2, "info": 1}
@@ -79,6 +81,10 @@ def build_candidates(history: list[dict], mode: dict) -> list[Candidate]:
     for f in last["findings"]:
         same = [h for h in history for g in h["findings"] if g["corner"] == f["corner"] and g["type"] == f["type"]]
         rep = len(same)
+        recent = history[-REPEAT_WINDOW:]
+        rep_recent = sum(1 for h in recent if any(g["corner"] == f["corner"] and g["type"] == f["type"] for g in h["findings"]))
+        if rep_recent < MIN_REPEAT:
+            continue
         imps = [g["time_impact_s"] for h in history for g in h["findings"] if g["corner"] == f["corner"] and g["type"] == f["type"]
                 and g["time_impact_s"] is not None]
         imp = f["time_impact_s"] if f["time_impact_s"] is not None else (statistics.fmean(imps) if imps else None)
@@ -86,7 +92,8 @@ def build_candidates(history: list[dict], mode: dict) -> list[Candidate]:
         grp = GROUP_OF.get(f["type"], "pace")
         score = weight(mode, grp) * f["confidence"]["score"] * impf * min(1.75, 1.0 + 0.25 * (rep - 1))
         out.append(Candidate(f"{f['corner']}.{f['type']}", f["type"], f["corner"], f["phase"], f["lap"], text_for(f), score,
-                             {"level": f["confidence"]["level"], "score": f["confidence"]["score"], "reasons": f["confidence"]["reasons"]},
+                             {"level": f["confidence"]["level"], "score": f["confidence"]["score"],
+                              "reasons": list(f["confidence"]["reasons"]) + [f"presente in {rep_recent} degli ultimi {len(recent)} giri analizzati"]},
                              None if imp is None else round(float(imp), 3), rep, f["evidence"], f["ref_lap"], grp))
     # consistency across laps (needs >= 3 analysed laps): brake point scatter per corner
     if len(history) >= 3:

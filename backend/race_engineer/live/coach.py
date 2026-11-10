@@ -85,7 +85,8 @@ def lap_conditions(cols: dict) -> dict:
 def comparable(lap: dict | None, ref: dict | None) -> dict:
     """Is this lap comparable with the reference? Unknown values never block (they are reported as missing)."""
     if not lap or not ref:
-        return {"ok": True, "reasons": [], "warnings": [], "missing": ["condizioni del giro di riferimento non registrate"]}
+        return {"ok": True, "verified": False, "reasons": [], "warnings": [],
+                "missing": ["condizioni del giro di riferimento non registrate (riferimento di un'altra sessione): confrontabilità non verificabile"]}
     reasons, warns, missing = [], [], []
     for k, lim in COND_LIMITS.items():
         a, b = lap.get(k), ref.get(k)
@@ -99,7 +100,22 @@ def comparable(lap: dict | None, ref: dict | None) -> dict:
             warns.append({"fuel_l": f"carburante diverso di {abs(a - b):.0f} L", "wear": "usura gomme diversa"}[k])
         elif a is not None and b is not None and k in COND_LIMITS and lim > abs(a - b) >= lim / 2:
             warns.append(f"temperatura pista diversa di {abs(a - b):.0f} °C")
-    return {"ok": not reasons, "reasons": reasons, "warnings": warns, "missing": missing}
+    # verified = BOTH limiting channels (rain, track temperature) are known on both laps. Otherwise the comparison cannot be established:
+    # advice may still be shown (capped confidence) but its effect is NEVER judged ("non_verificabile").
+    verified = not missing
+    return {"ok": not reasons, "verified": verified and not reasons, "reasons": reasons, "warnings": warns, "missing": missing}
+
+
+def cap_confidence(res: dict | None, comp: dict) -> None:
+    """Unverified comparability -> a finding can be at most 'media' confidence (in place, same structure)."""
+    if res is None or comp.get("verified", False):
+        return
+    for f in res["findings"]:
+        c = f["confidence"]
+        if c["level"] == "alta":
+            c["level"] = "media"
+            c["score"] = min(c["score"], 0.64)
+            c["reasons"] = list(c["reasons"]) + ["condizioni del giro di riferimento non verificabili: confidenza limitata a «media»"]
 
 
 def fmt_time(s: float | None) -> str:
@@ -210,13 +226,20 @@ class Coach:
                 continue                                           # not displayed before this lap: cannot be judged on it
             rec = {"tip_id": tip["id"], "key": tip["key"], "corner": tip["corner"], "type": tip["type"], "headline": tip["instruction"].get("headline"),
                    "corner_label": tip["instruction"].get("corner_label")}
-            if not comp["ok"]:
+            if not (comp["ok"] and comp.get("verified", False)):
+                why = "; ".join(comp["reasons"]) or "condizioni (pioggia/temperatura pista) non note su uno dei due giri: confronto non verificabile"
                 skipped = tip["skipped"] + 1
                 st = "non_verificabile" if skipped >= MAX_SKIPPED else "mostrato"
-                self.mem.evaluate(tip["id"], status=st, outcome="non_confrontabile", lap=lap, impact_after=None, count=False, skipped=True)
-                evals.append({**rec, "status": st, "outcome": "non_confrontabile", "why": "; ".join(comp["reasons"])})
+                oc = "non_confrontabile" if not comp["ok"] else "non_verificabile"
+                self.mem.evaluate(tip["id"], status=st, outcome=oc, lap=lap, impact_after=None, count=False, skipped=True)
+                evals.append({**rec, "status": st, "outcome": oc, "why": why})
                 continue
             f = found.get(tip["key"])
+            if f is None and tip["outcome"] != "miglioramento_osservato":
+                # first lap without the problem: an OBSERVED improvement, not yet a stable one (one lap can be luck) -> wait for a confirmation
+                self.mem.evaluate(tip["id"], status="mostrato", outcome="miglioramento_osservato", lap=lap, impact_after=0.0)
+                evals.append({**rec, "status": "mostrato", "outcome": "miglioramento_osservato", "impact_before_s": tip["impact_before_s"], "impact_after_s": 0.0})
+                continue
             if f is None:
                 self.mem.evaluate(tip["id"], status="applicato", outcome="seguito_migliorato", lap=lap, impact_after=0.0)
                 self.mem.mark_fixed(self.track, self.vehicle, self.synthetic, tip["corner"], tip["type"])

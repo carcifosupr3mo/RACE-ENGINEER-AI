@@ -1,4 +1,11 @@
 # CHANGELOG
+## 0.6.1 (non rilasciata) — Audit del coaching
+- **Run 15 (commit solo documentale) fallita** nel job `display-e2e`: a 800×480 il riquadro dell'istruzione usciva dallo schermo (la spiegazione lunga rendeva il riquadro troppo alto). Causa reale: il Display mostrava testo lungo anche in guida. Corretto: in guida solo titolo + «come» (max 3 righe); perché/obiettivo/abitudine e analisi completa solo sotto 30 km/h.
+- Un rilievo diventa consiglio solo se ripetuto in ≥ 2 degli ultimi 3 giri analizzati (un giro cattivo isolato è rumore); il primo consiglio non arriva prima del 3° giro analizzato.
+- Confrontabilità non verificabile (pioggia/temperatura pista ignote su un giro, p.es. riferimento di un'altra sessione): confidenza limitata a «media» e esito del consiglio NON giudicato (`non_verificabile`).
+- «Applicato» solo dopo 2 giri consecutivi senza il problema (`miglioramento_osservato` al primo): nessun «applicato» per un singolo giro fortunato.
+- Nuovo scenario sintetico `repeated` (stesso errore su 3 giri); CI e2e lo usa al posto di `mixed` (errori isolati ⇒ nessun consiglio, voluto).
+- Docs: `docs/COACHING.md` (canali, soglie con avvertenza «euristiche», limiti), procedura reale in 16 passi con PASS/FAIL e scenario B (condizioni diverse), `ROADMAP.md`.
 ## 0.6.0 (non rilasciata) — Ingegnere di pista AI (coaching)
 - **Coaching dentro l'unico motore**: `live/coach.py` è un componente del `LiveEngineer` (nessun secondo motore/acquisitore/analizzatore). Riusa `analysis.driving.analyse`.
 - Nuovi rilievi sull'intera curva: trail braking insufficiente/eccessivo, gas aggressivo, scelta marcia (con guardie anti-contraddizione).

@@ -29,7 +29,7 @@ from ..analysis.laps import SessionData, segment_laps
 from ..analysis.reference import PersonalReference
 from ..analysis.session_mode import classify
 from .suggestions import Arbiter, build_alerts, build_candidates
-from .coach import Coach, comparable, corners_meta, lap_conditions
+from .coach import Coach, cap_confidence, comparable, corners_meta, lap_conditions
 
 LIVE_COLS = ("session_time_s", "lap_number", "lap_dist_m", "speed_kmh", "throttle", "brake", "steering", "rpm", "gear", "in_pits",
              "lap_invalidated", "last_lap_time_s", "fuel_l", "pos_x_m", "pos_z_m", "sector",
@@ -262,6 +262,7 @@ class LiveEngineer:
                 res["ref_time_s"] = anchor.time_s
                 res["lap_time_s"] = float(lap.time_s)
                 res["comparable"], res["conditions"] = comp["ok"], cond
+                cap_confidence(res, comp)
                 self.last_analysis = res
                 if comp["ok"]:
                     self.history.append(res)         # laps in clearly different conditions neither create nor judge advice

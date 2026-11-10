@@ -40,7 +40,7 @@ const INIT = () => {          // test hook: keep every WebSocket reachable and a
   // coaching: how / why / goal in Italian, text only (the detail is hidden while the driver is busy, so wait for a calm moment)
   await p.waitForSelector('[data-testid=display-instruction]', { timeout: 60000 })
   const det = await p.textContent('[data-testid=display-instruction]')
-  check('instruction shows how / why / goal', /Perché:/.test(det) && /Obiettivo:/.test(det) && det.length > 40, det.slice(0, 90))
+  check('while driving only the SHORT instruction is shown (no long explanation)', det.length > 10 && det.length < 260 && !/Perché:/.test(det) && (await p.$$('[data-testid=display-explain]')).length === 0, det.slice(0, 90))
   check('no voice / audio element anywhere on the display', (await p.$$('audio, video')).length === 0)
   await p.waitForSelector('[data-testid=display-review]', { timeout: 90000 }).catch(() => {})
   const rv = await p.$('[data-testid=display-review-summary]')

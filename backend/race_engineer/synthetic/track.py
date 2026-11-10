@@ -58,6 +58,7 @@ SCENARIOS: dict[str, Scenario] = {
     "missing_samples": Scenario("missing_samples", drop_prob=0.15),
     "incomplete": Scenario("incomplete", incomplete_after_lap=2),
     "mixed": Scenario("mixed", lap_overrides={2: "early_brake", 3: "late_throttle"}),   # one session, different laps
+    "repeated": Scenario("repeated", lap_overrides={2: "early_brake", 3: "early_brake", 4: "early_brake"}),   # the SAME error on 3 laps then clean: a repeated error is advised, a one-off is not
     "no_tyre_data": Scenario("no_tyre_data", unavailable=tuple(
         f"tyre_{w}_{c}" for w in ("fl", "fr", "rl", "rr") for c in ("pressure_kpa", "wear"))),
 }

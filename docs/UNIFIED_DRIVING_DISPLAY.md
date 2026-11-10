@@ -202,6 +202,26 @@ Prima dell'uscita in pista l'unica cosa che i test sintetici NON possono dire è
 - Solo testo, nessuna voce. Nessun upload di telemetria; l'AI è opzionale e non necessaria.
 - Non misurabile con i canali acquisiti (quindi mai affermato): traffico, sotto/sovrasterzo, pattinamento, differenze di setup.
 
-### 11.2 Procedura di test reale (13 passi) — NON ancora eseguita
-1. Avvia l'app (`AVVIA_CON_DISPLAY.bat`). 2. Avvia LMU ed entra in pista. 3. Controlla che la sessione sia riconosciuta (tipo, circuito, vettura). 4. Verifica la Shared Memory acquisita. 5. Verifica la frequenza effettiva (≥ 5 Hz, atteso ~50–100). 6. Confronta velocità, giri motore, marcia, freno e gas con l'HUD di LMU. 7. Completa ≥ 3 giri puliti: i giri devono essere riconosciuti. 8. Verifica che le curve siano identificate (mappa dalle posizioni reali). 9. Verifica che le zone di frenata corrispondano alla pista. 10. Controlla la comparazione giro/riferimento (delta). 11. Controlla che compaia un'istruzione con spiegazione e un'analisi di fine giro. 12. Verifica che dashboard e Display mostrino lo stesso stato. 13. Chiudi e riavvia l'app: consigli, abitudini e giri devono essere ancora presenti (`/api/coach/summary`).
-Poi `python -m race_engineer live-check` (o `VERIFICA_DISPLAY.bat`): il report (nessun nome pilota/percorso/chiave) include i passi `coach_instruction`, `lap_review`, `coach_memory`. Non si modificano file di LMU. **Finché non arrivano dati reali analizzati, l'integrazione con LMU reale NON è verificata.**
+### 11.2 Procedura di test REALE con LMU (Windows) — NON ancora eseguita
+Regole: non modificare file di LMU; salva ogni risultato (PASS/FAIL + dato). In caso di FAIL raccogli: `python -m race_engineer live-check` (report in `reports/`), `GET /api/engineer/state?full=1`, `GET /diag`, `GET /api/coach/summary`, la cartella `logs/`, una foto/screenshot del Display e dell'HUD di LMU. I report sono anonimizzati (nessun nome pilota/percorso/chiave): non inviare altro.
+
+| # | Azione | Atteso | Registra | PASS se | Se FAIL raccogli |
+|---|---|---|---|---|---|
+| 1 | `AVVIA_CON_DISPLAY.bat` | app e Display si aprono, nessun errore | versione, orario | UI raggiungibile su `/app/` e `/driving-display` | log di avvio |
+| 2 | Avvia LMU, entra in pista (sessione di prove, meteo asciutto) | – | circuito, vettura, meteo, temperatura pista dall'HUD | – | – |
+| 3 | Stato connessione | «LIVE», `state=acquiring` | `/diag`: mapping size, effective_hz | shared memory acquisita, ≥ 5 Hz effettivi (atteso ~50–100) | `/diag`, `verify-lmu` |
+| 4 | Confronta con HUD: velocità, giri motore, marcia, gas, freno | valori coincidenti (±2 km/h) | 3 confronti a velocità diverse | tutti coincidono | foto HUD+Display |
+| 5 | Sessione/circuito/vettura riconosciuti | corrispondono a LMU | valori mostrati | uguali a LMU | `/api/engineer/state` |
+| 6 | Guida 8 giri puliti in condizioni costanti (stesse gomme, nessuna pioggia), con 2–3 curve in cui freni volutamente 15–20 m prima ad ogni giro | giri 1..8 riconosciuti, tempi = HUD (±0,1 s) | tempo/giro app vs HUD | ogni giro riconosciuto una volta, tempo coerente | `lap_completed` negli eventi |
+| 7 | Mappa e curve | tracciato dalle posizioni reali, curve P1.. sulle curve vere | n° curve vs pista | forma/curve plausibili | screenshot mappa |
+| 8 | Display in guida | una sola istruzione, solo titolo + «come», nessun testo lungo; nulla di nuovo in frenata/curva | cosa compare e quando | coerente con ciò che hai fatto | video/screenshot |
+| 9 | Istruzione: il consiglio appare solo dopo l'errore ripetuto (≥ 2 giri) e riguarda la curva dove freni presto | consiglio sulla curva giusta | curva, testo, affidabilità | corrisponde; nessun consiglio su curve guidate bene | `/api/coach/tips` |
+| 10 | Segui il consiglio per 2–3 giri | `miglioramento_osservato` poi `applicato` | stato nei `/api/coach/tips` | transizione corretta, mai `applicato` dopo un solo giro | `/api/coach/tips` |
+| 11 | Ferma la vettura (< 30 km/h) | spiegazione completa e analisi del giro | testo | analisi del giro con tempi coerenti | `/api/coach/review` |
+| 12 | `/api/engineer/checklist` e `live-check` | passi automatici OK, verdetto REAL | report | `REAL_ALL_AUTOMATIC_STEPS_OK` (non sostituisce i confronti 4–5) | report |
+| 13 | **Scenario B (condizioni diverse)**: ferma, cambia meteo/pioggia o temperatura pista in modo netto (o gomme diverse), guida 3 giri | i giri sono dichiarati NON confrontabili/non verificabili, nessun giudizio sui consigli, nessun nuovo consiglio basato su quei giri | testo review | review dice «non confrontabile» e i consigli restano non giudicati | `/api/coach/review` |
+| 14 | Chiudi l'app e riavviala (stesso circuito/vettura) | consigli, abitudini, giri analizzati ancora presenti | `/api/coach/summary` prima/dopo | stessi conteggi | dump prima/dopo |
+| 15 | Log | nessun errore in `logs/`, nessun nome pilota/chiave | – | zero errori | log |
+| 16 | Ricollegamento: scollega il cavo di rete del secondo monitor / ricarica la pagina | stato offline poi ripresa | – | torna LIVE da solo | – |
+
+Il test NON è completato finché i passi 3–14 non sono eseguiti con LMU attivo: fino ad allora lo stato resta «non verificato con LMU reale». Limite noto: un riferimento salvato da un'altra sessione non ha condizioni registrate ⇒ i consigli appariranno con confidenza «media» e il loro esito sarà `non_verificabile` finché non c'è un nuovo giro di riferimento nella stessa sessione.

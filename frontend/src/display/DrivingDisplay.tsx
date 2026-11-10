@@ -43,7 +43,7 @@ export default function DrivingDisplay() {
       <div className="d-body">
         <section className="d-coach">
           <Corner c={c} />
-          <Coach sug={sug} review={e?.review} />
+          <Coach sug={sug} review={e?.review} calm={inp?.speed_kmh != null && inp.speed_kmh < CALM_KMH} />
           <Alerts alerts={e?.alerts} />
           <div className="d-last d-mut" data-testid="display-lastlap">
             ultimo {fmtTime(e?.lap?.last_s)} · migliore {fmtTime(e?.lap?.best_s)}
@@ -90,7 +90,8 @@ function Corner({ c }: { c: any }) {
 }
 
 /** The ONE main instruction (what / where / how / why / goal) or, between laps, the end-of-lap review. Everything comes from the shared state. */
-function Coach({ sug, review }: { sug: any, review: any }) {
+const CALM_KMH = 30      // below this (pits, stopped, very slow) the long explanation is allowed; while driving only the short instruction is shown
+function Coach({ sug, review, calm }: { sug: any, review: any, calm: boolean }) {
   if (!sug) return <div className="d-sug learning" data-testid="display-suggestion">In attesa dei dati…</div>
   if (sug.state === 'learning') return <div className="d-sug learning" data-testid="display-suggestion"><small>APPRENDIMENTO</small><div className="txt">{sug.learning?.message ?? 'Sto imparando il circuito'}</div></div>
   const m = sug.main, i = m?.instruction
@@ -100,7 +101,7 @@ function Coach({ sug, review }: { sug: any, review: any }) {
       {showReview && (
         <div className="d-review" data-testid="display-review">
           <small>ANALISI GIRO {review.lap}{review.synthetic ? ' · DATI SINTETICI' : ''}{review.comparable === false ? ' · NON CONFRONTABILE' : ''}</small>
-          <div className="rv-sum" data-testid="display-review-summary">{review.summary}</div>
+          <div className="rv-sum" data-testid="display-review-summary">{calm ? review.summary : String(review.summary).split('. ')[0] + '.'}</div>
         </div>)}
       {!m ? <div className="d-sug quiet" data-testid="display-suggestion"><small>ISTRUZIONE</small><div className="txt">Nessun miglioramento significativo rilevato</div></div> : (
         <div className={'d-sug ' + (sug.frozen ? 'frozen' : '')} data-testid="display-suggestion">
@@ -109,10 +110,13 @@ function Coach({ sug, review }: { sug: any, review: any }) {
           {i && !sug.frozen && (
             <div className="d-detail" data-testid="display-instruction">
               <div className="d-how">{i.how}</div>
-              {i.why && <div className="d-mut">Perché: {i.why}</div>}
-              {i.goal && <div className="d-goal">Obiettivo: {i.goal}</div>}
-              {i.habit_note && <div className="d-note" data-testid="display-habit">{i.habit_note}</div>}
-              {i.reassessment && <div className="d-note warn" data-testid="display-reassess">{i.reassessment}</div>}
+              {calm && (
+                <div data-testid="display-explain">
+                  {i.why && <div className="d-mut">Perché: {i.why}</div>}
+                  {i.goal && <div className="d-goal">Obiettivo: {i.goal}</div>}
+                  {i.habit_note && <div className="d-note" data-testid="display-habit">{i.habit_note}</div>}
+                  {i.reassessment && <div className="d-note warn" data-testid="display-reassess">{i.reassessment}</div>}
+                </div>)}
             </div>)}
           <div className="meta"><span className={'d-chip ' + levelClass(m.confidence?.level)}>affidabilità {m.confidence?.level}</span>
             {m.impact_s != null && <span className="d-mut">perdi {m.impact_s.toFixed(2)} s</span>}{m.repeat > 1 && <span className="d-mut">× {m.repeat} giri</span>}</div>

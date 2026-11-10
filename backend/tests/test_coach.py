@@ -10,6 +10,7 @@ from race_engineer.storage.coach_memory import CoachMemory
 
 from .test_live_engineer import FAST, H, run
 
+
 ALL_TYPES = ["early_braking", "inefficient_late_braking", "braking_too_long", "abrupt_release", "delayed_acceleration", "insufficient_min_speed",
              "inefficient_line", "insufficient_trail_braking", "excess_trail_braking", "aggressive_throttle", "gear_choice", "entry_loss", "mid_loss",
              "exit_loss", "inconsistent"]
@@ -58,7 +59,7 @@ def test_comparability_rules():
 
 
 def test_lifecycle_on_mixed_session_and_review(tmp_path, catalog):
-    g, e, app, live, snaps = run(tmp_path, catalog, laps=8, observe=40)
+    g, e, app, live, snaps = run(tmp_path, catalog, scenario="repeated", laps=10, observe=40)
     mem = live.coach.mem
     tips = mem.recent_tips(live.coach.track, live.coach.vehicle, True, 100)
     assert tips, "tips must be recorded"
@@ -88,8 +89,49 @@ def test_lifecycle_on_mixed_session_and_review(tmp_path, catalog):
     e.stop()
 
 
+def test_single_lap_error_is_not_advised(tmp_path, catalog):
+    """mixed = one early-braking lap and one late-throttle lap, each ONCE: lap-to-lap noise, so no instruction may be created."""
+    g, e, app, live, snaps = run(tmp_path, catalog, scenario="mixed", laps=8, observe=40)
+    assert live.coach.mem.recent_tips(live.coach.track, live.coach.vehicle, True) == []
+    assert all(s["suggestion"]["main"] is None for s in snaps)
+    e.stop()
+
+
+def test_improvement_needs_a_confirming_lap_before_applied(catalog):
+    from race_engineer.live.coach import Coach
+    co = Coach(catalog, lambda: 1000.0)
+    co.bind("s", "T", "V", True)
+    tid = co.mem.new_tip(session_id="s", track="T", vehicle="V", synthetic=True, corner="P1", type_="early_braking", lap=1, confidence="media",
+                         impact_s=0.2, mag=10.0, instruction={"headline": "x", "corner_label": "CURVA P1"})
+    co._tips["P1.early_braking"] = tid
+    co.mem.mark_shown(tid, 1)
+    ok = {"ok": True, "verified": True, "reasons": [], "warnings": [], "missing": []}
+    e1 = co.lap_closed({"findings": [], "corners": []}, lap=2, comp=ok)
+    assert e1[0]["outcome"] == "miglioramento_osservato" and co.mem.tip(tid)["status"] == "mostrato"      # one lap could be luck
+    assert co.mem.habit("T", "V", True, "P1", "early_braking")["classification"] != "corretto"
+    e2 = co.lap_closed({"findings": [], "corners": []}, lap=3, comp=ok)
+    assert e2[0]["status"] == "applicato" and co.mem.tip(tid)["outcome"] == "seguito_migliorato"
+
+
+def test_unknown_conditions_are_not_verifiable_and_cap_confidence(catalog):
+    from race_engineer.live.coach import Coach, cap_confidence
+    unknown = comparable({"rain": 0.0, "track_temp_c": 30.0}, None)
+    assert unknown["ok"] and unknown["verified"] is False
+    res = {"findings": [{"confidence": {"level": "alta", "score": 0.9, "reasons": []}}]}
+    cap_confidence(res, unknown)
+    assert res["findings"][0]["confidence"]["level"] == "media"
+    co = Coach(catalog, lambda: 1000.0)
+    co.bind("s", "T", "V", True)
+    tid = co.mem.new_tip(session_id="s", track="T", vehicle="V", synthetic=True, corner="P1", type_="early_braking", lap=1, confidence="media",
+                         impact_s=0.2, mag=10.0, instruction={"headline": "x", "corner_label": "CURVA P1"})
+    co._tips["P1.early_braking"] = tid
+    co.mem.mark_shown(tid, 1)
+    ev = co.lap_closed({"findings": [], "corners": []}, lap=2, comp=unknown)
+    assert ev[0]["outcome"] == "non_verificabile" and co.mem.tip(tid)["evaluations"] == 0       # never judged on an unverifiable comparison
+
+
 def test_memory_persists_across_restart(tmp_path, catalog):
-    g, e, app, live, snaps = run(tmp_path, catalog, laps=6)
+    g, e, app, live, snaps = run(tmp_path, catalog, scenario="repeated", laps=8)
     tr, ve = live.coach.track, live.coach.vehicle
     n_tips, n_habits, n_laps = len(live.coach.mem.recent_tips(tr, ve, True)), len(live.coach.mem.habits(tr, ve, True)), live.coach.mem.laps_analysed(tr, ve, True)
     live.coach.mem.set_prefs({"min_confidence": "media", "verbosity": "breve"})
@@ -167,7 +209,7 @@ def test_reassessment_after_repeated_unfollowed_advice(tmp_path, catalog):
                          confidence="alta", impact_s=0.2, mag=10.0, instruction={"headline": "FRENA", "corner_label": "CURVA P7"})
     co._tips["P7.early_braking"] = tid
     co.mem.mark_shown(tid, 1)
-    ok = {"ok": True, "reasons": [], "warnings": [], "missing": []}
+    ok = {"ok": True, "verified": True, "reasons": [], "warnings": [], "missing": []}
     ev1 = co.lap_closed({"findings": [f], "corners": []}, lap=2, comp=ok)
     ev1 = [x for x in ev1 if x["tip_id"] == tid]
     assert ev1[0]["outcome"] == "non_seguito" and ev1[0]["status"] == "mostrato"

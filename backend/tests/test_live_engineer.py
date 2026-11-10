@@ -34,7 +34,7 @@ def strip(st):
 
 
 def test_learning_state_until_two_valid_laps_then_single_suggestion(tmp_path, catalog):
-    g, e, app, live, snaps = run(tmp_path, catalog, observe=50)
+    g, e, app, live, snaps = run(tmp_path, catalog, scenario="repeated", laps=8, observe=50)
     early = [s for s in snaps if s["ready"] and s["lap"]["number"] == 1]
     assert early and all(s["suggestion"]["state"] == "learning" and s["suggestion"]["main"] is None for s in early)
     assert "Sto imparando" in early[0]["suggestion"]["learning"]["message"]
@@ -47,7 +47,7 @@ def test_learning_state_until_two_valid_laps_then_single_suggestion(tmp_path, ca
 
 
 def test_suggestion_is_frozen_while_driver_is_busy(tmp_path, catalog):
-    g, e, app, live, snaps = run(tmp_path, catalog, observe=5)
+    g, e, app, live, snaps = run(tmp_path, catalog, scenario="repeated", laps=8, observe=5)
     prev = None
     n_frozen = 0
     for s in snaps:
