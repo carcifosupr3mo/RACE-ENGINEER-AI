@@ -52,8 +52,10 @@ function EngineerBlock({ e }: { e: any }) {
         <span>Ultimo giro vs rif.: <b className="mono">{e.last_lap?.delta_s != null ? (e.last_lap.delta_s > 0 ? '+' : '') + e.last_lap.delta_s.toFixed(3) + ' s' : '–'}</b></span>
       </div>
       <div data-testid="live-suggestion" className={sug?.state === 'learning' ? 'mut' : ''}>
-        {sug?.state === 'learning' ? sug.learning?.message : m ? <><b>{m.text}</b> <span className={'tag conf-' + m.confidence?.level}>affidabilità {m.confidence?.level}</span></> : 'Nessun miglioramento significativo rilevato'}
+        {sug?.state === 'learning' ? sug.learning?.message : m ? <><b>{m.instruction?.text ?? m.text}</b> <span className={'tag conf-' + m.confidence?.level}>affidabilità {m.confidence?.level}</span></> : 'Nessun miglioramento significativo rilevato'}
       </div>
+      {m?.instruction && <div className="mut" data-testid="live-instruction">{m.instruction.how}{m.instruction.habit_note ? ' · ' + m.instruction.habit_note : ''}</div>}
+      {e.review && <div className="mut" data-testid="live-review">Giro {e.review.lap}: {e.review.summary}</div>}
       {e.alerts?.map((a: any) => <div key={a.id} className={a.level === 'info' ? 'mut' : 'bad'}>⚠ {a.text}</div>)}
       {e.ai_note && <div className="mut" data-testid="live-ai-note">AI ({e.ai_note.provider}, giro {e.ai_note.lap}): {e.ai_note.text}</div>}
     </div>)

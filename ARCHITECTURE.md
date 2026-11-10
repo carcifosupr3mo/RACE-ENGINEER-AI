@@ -54,3 +54,16 @@ Un solo flusso: `AcquisitionEngine` → `LiveEngineer` (`live/engineer.py`: buff
 `snapshot()` unico, consumato da `/ws/live` (campo `engineer`), `/api/engineer/*`, dashboard e **Driving Display** (`/driving-display`, stesso bundle React). Post-sessione `/api/sessions/{id}/driving` e
 `ai/facts` usano la stessa `driving.analyse`. Moduli nuovi: `analysis/driving.py`, `analysis/reference.py`, `analysis/session_mode.py`, `live/{engineer,suggestions}.py`.
 Vedi `docs/UNIFIED_DRIVING_DISPLAY.md` (piano, architettura, API, procedura secondo monitor/LAN, limiti).
+
+## Ingegnere di pista: flusso dati del coaching (0.6.0)
+```
+AcquisitionEngine (unico lettore Shared Memory, read-only)
+  └─ LiveEngineer (stato condiviso, lock unico)
+       ├─ analysis.driving.analyse  ── unica analisi (live, offline, fatti AI)
+       ├─ build_candidates → Coach.decorate (memoria: preferenze, ri-valutazione, consigli opposti) → Arbiter (1 solo, isteresi, congelato in guida)
+       ├─ Coach.sync_tips / displayed / lap_closed  ── ciclo di vita dei consigli + abitudini  ┐
+       ├─ Coach.review (fine giro)                                                           ├─ Catalog SQLite (migrazione 5)
+       └─ snapshot() → WS `engineer` + /api/engineer/* + /api/coach/* → Dashboard e Driving Display (stesso stato)
+AI (opzionale): spiega aggregati/istruzioni già calcolati; il coaching funziona offline con sole regole locali.
+```
+Decisioni: il coach non legge telemetria e non analizza giri (usa i risultati dell'unica `analyse`); la causa di sotto/sovrasterzo, pattinamento, traffico e setup non è misurabile con i canali acquisiti e viene elencata sotto «dati mancanti», mai affermata.

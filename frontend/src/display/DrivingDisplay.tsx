@@ -41,14 +41,14 @@ export default function DrivingDisplay() {
       </header>
       {offline && <div className="d-offline" data-testid="display-offline" role="alert">{st.everConnected ? 'Nessun dato dal PC: valori in pausa (ultimo stato mostrato attenuato)' : 'Connessione al PC in corso…'}</div>}
       <div className="d-body">
-        <section className="d-mapwrap">
-          <TrackMap map={st.map} pos={e?.position ?? null} trail={st.trail} current={c?.current ?? null} next={c?.next ?? null} selected={sel} onSelect={setSel} />
-          {selCorner && (
-            <div className="d-corner-card" data-testid="corner-card">
-              <b>Curva {selCorner.name || selCorner.id}</b>{selCorner.provisional && <span className="d-mut"> (numerazione provvisoria)</span>}
-              <div>freno da {selCorner.entry_m.toFixed(0)} m · apice {selCorner.apex_m.toFixed(0)} m · vel. min {selCorner.min_speed_kmh?.toFixed?.(0) ?? '–'} km/h</div>
-              {selTarget && <div className="d-mut">miglior passaggio: giro {selTarget.best_lap} · {selTarget.best_zone_s.toFixed(3)} s{selTarget.gain_vs_anchor_s ? ` (−${selTarget.gain_vs_anchor_s.toFixed(3)} s vs riferimento)` : ''}</div>}
-            </div>)}
+        <section className="d-coach">
+          <Corner c={c} />
+          <Coach sug={sug} review={e?.review} />
+          <Alerts alerts={e?.alerts} />
+          <div className="d-last d-mut" data-testid="display-lastlap">
+            ultimo {fmtTime(e?.lap?.last_s)} · migliore {fmtTime(e?.lap?.best_s)}
+            {e?.last_lap?.delta_s != null && <> · giro {e.last_lap.lap}: {fmtDelta(e.last_lap.delta_s)} s</>}
+          </div>
         </section>
         <section className="d-side">
           <div className={'d-delta ' + deltaClass(d?.to_ref_s)} data-testid="display-delta">
@@ -64,14 +64,14 @@ export default function DrivingDisplay() {
           <div className="d-pedals">
             <Pedal label="gas" v={inp?.throttle} cls="thr" /><Pedal label="freno" v={inp?.brake} cls="brk" />
           </div>
-          <div className="d-corner" data-testid="display-corner">
-            <span>{c?.current ? <>in curva <b>{c.current}</b> · {c.phase}</> : <>prossima <b>{c?.next ?? '–'}</b>{c?.dist_to_next_m != null ? ` tra ${c.dist_to_next_m.toFixed(0)} m` : ''}</>}</span>
-          </div>
-          <Suggestion sug={sug} />
-          <Alerts alerts={e?.alerts} />
-          <div className="d-last d-mut" data-testid="display-lastlap">
-            ultimo {fmtTime(e?.lap?.last_s)} · migliore {fmtTime(e?.lap?.best_s)}
-            {e?.last_lap?.delta_s != null && <> · giro {e.last_lap.lap}: {fmtDelta(e.last_lap.delta_s)} s</>}
+          <div className="d-mapwrap">
+            <TrackMap map={st.map} pos={e?.position ?? null} trail={st.trail} current={c?.current ?? null} next={c?.next ?? null} selected={sel} onSelect={setSel} />
+            {selCorner && (
+              <div className="d-corner-card" data-testid="corner-card">
+                <b>Curva {selCorner.name || selCorner.id}</b>{selCorner.provisional && <span className="d-mut"> (numerazione provvisoria)</span>}
+                <div>freno da {selCorner.entry_m.toFixed(0)} m · apice {selCorner.apex_m.toFixed(0)} m · vel. min {selCorner.min_speed_kmh?.toFixed?.(0) ?? '–'} km/h</div>
+                {selTarget && <div className="d-mut">miglior passaggio: giro {selTarget.best_lap} · {selTarget.best_zone_s.toFixed(3)} s{selTarget.gain_vs_anchor_s ? ` (−${selTarget.gain_vs_anchor_s.toFixed(3)} s vs riferimento)` : ''}</div>}
+              </div>)}
           </div>
         </section>
       </div>
@@ -82,18 +82,42 @@ function Pedal({ label, v, cls }: { label: string, v: number | null | undefined,
   return <div className={'d-pedal ' + cls}><small>{label} {v != null ? Math.round(v * 100) + '%' : '–'}</small><div><i style={{ height: `${(v ?? 0) * 100}%` }} /></div></div>
 }
 
-function Suggestion({ sug }: { sug: any }) {
-  if (!sug) return <div className="d-sug learning" data-testid="display-suggestion">In attesa dei dati…</div>
-  if (sug.state === 'learning') return <div className="d-sug learning" data-testid="display-suggestion"><small>APPRENDIMENTO</small><div>{sug.learning?.message ?? 'Sto imparando il circuito'}</div></div>
-  const m = sug.main
-  if (!m) return <div className="d-sug quiet" data-testid="display-suggestion"><small>SUGGERIMENTO</small><div>Nessun miglioramento significativo rilevato</div></div>
+function Corner({ c }: { c: any }) {
   return (
-    <div className={'d-sug ' + (sug.frozen ? 'frozen' : '')} data-testid="display-suggestion">
-      <small>SUGGERIMENTO · curva {m.corner}{sug.frozen ? ' · in guida' : ''}</small>
-      <div className="txt" data-testid="display-suggestion-text">{m.text}</div>
-      <div className="meta"><span className={'d-chip ' + levelClass(m.confidence?.level)}>affidabilità {m.confidence?.level}</span>
-        {m.impact_s != null && <span className="d-mut">perdi {m.impact_s.toFixed(2)} s</span>}{m.repeat > 1 && <span className="d-mut">× {m.repeat} giri</span>}</div>
+    <div className="d-corner" data-testid="display-corner">
+      <span>{c?.current ? <>in curva <b>{c.current}</b> · {c.phase}</> : <>prossima <b>{c?.next ?? '–'}</b>{c?.dist_to_next_m != null ? ` tra ${c.dist_to_next_m.toFixed(0)} m` : ''}</>}</span>
     </div>)
+}
+
+/** The ONE main instruction (what / where / how / why / goal) or, between laps, the end-of-lap review. Everything comes from the shared state. */
+function Coach({ sug, review }: { sug: any, review: any }) {
+  if (!sug) return <div className="d-sug learning" data-testid="display-suggestion">In attesa dei dati…</div>
+  if (sug.state === 'learning') return <div className="d-sug learning" data-testid="display-suggestion"><small>APPRENDIMENTO</small><div className="txt">{sug.learning?.message ?? 'Sto imparando il circuito'}</div></div>
+  const m = sug.main, i = m?.instruction
+  const showReview = !!review?.visible && !sug.frozen && review?.summary
+  return (
+    <>
+      {showReview && (
+        <div className="d-review" data-testid="display-review">
+          <small>ANALISI GIRO {review.lap}{review.synthetic ? ' · DATI SINTETICI' : ''}{review.comparable === false ? ' · NON CONFRONTABILE' : ''}</small>
+          <div className="rv-sum" data-testid="display-review-summary">{review.summary}</div>
+        </div>)}
+      {!m ? <div className="d-sug quiet" data-testid="display-suggestion"><small>ISTRUZIONE</small><div className="txt">Nessun miglioramento significativo rilevato</div></div> : (
+        <div className={'d-sug ' + (sug.frozen ? 'frozen' : '')} data-testid="display-suggestion">
+          <small>{i?.corner_label ?? 'ISTRUZIONE'}{sug.frozen ? ' · in guida' : ''}{i?.status && i.status !== 'nuovo' ? ` · ${i.status}` : ''}</small>
+          <div className="txt" data-testid="display-suggestion-text">{i?.text ?? m.text}</div>
+          {i && !sug.frozen && (
+            <div className="d-detail" data-testid="display-instruction">
+              <div className="d-how">{i.how}</div>
+              {i.why && <div className="d-mut">Perché: {i.why}</div>}
+              {i.goal && <div className="d-goal">Obiettivo: {i.goal}</div>}
+              {i.habit_note && <div className="d-note" data-testid="display-habit">{i.habit_note}</div>}
+              {i.reassessment && <div className="d-note warn" data-testid="display-reassess">{i.reassessment}</div>}
+            </div>)}
+          <div className="meta"><span className={'d-chip ' + levelClass(m.confidence?.level)}>affidabilità {m.confidence?.level}</span>
+            {m.impact_s != null && <span className="d-mut">perdi {m.impact_s.toFixed(2)} s</span>}{m.repeat > 1 && <span className="d-mut">× {m.repeat} giri</span>}</div>
+        </div>)}
+    </>)
 }
 
 function Alerts({ alerts }: { alerts: any[] | undefined }) {

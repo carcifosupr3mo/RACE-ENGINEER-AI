@@ -420,8 +420,11 @@ def create_app(engine: AcquisitionEngine, catalog: Catalog, *, lan_enabled: bool
         from fastapi.responses import PlainTextResponse
         from ..live import checklist as _ck
         from ..lmu.verify import sanitize_obj
+        with live._lock:
+            coach_sum = live.coach.mem.summary(live.coach.track, live.coach.vehicle, live.coach.synthetic) if live.coach.sid else None
         rep = _ck.build(snapshot=live.snapshot(), map_payload=live.map_payload(), engine_diag=engine.diagnostics(),
-                        lmu_process=None if engine.synthetic else is_lmu_process_running(), live_status=live.status(), app_version=__version__)
+                        lmu_process=None if engine.synthetic else is_lmu_process_running(), live_status=live.status(), app_version=__version__,
+                        coach=coach_sum)
         rep = sanitize_obj(clean(rep))
         return PlainTextResponse(_ck.to_markdown(rep), media_type="text/markdown; charset=utf-8") if format == "md" else rep
 

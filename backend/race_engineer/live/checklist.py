@@ -9,12 +9,13 @@ from __future__ import annotations
 from typing import Any
 
 STEPS = ["lmu_process", "shared_memory", "session", "track", "samples", "map", "braking_points", "acceleration_points",
-         "corner_analysis", "delta", "dual_display"]
+         "corner_analysis", "coach_instruction", "lap_review", "coach_memory", "delta", "dual_display"]
 TITLES_IT = {
     "lmu_process": "LMU in esecuzione", "shared_memory": "Shared Memory LMU_Data acquisita", "session": "Sessione riconosciuta",
     "track": "Circuito riconosciuto", "samples": "Campioni acquisiti (frequenza, perdite)", "map": "Mappa costruita da posizioni reali",
     "braking_points": "Punti di frenata identificati", "acceleration_points": "Punti di accelerazione identificati",
-    "corner_analysis": "Analisi delle curve", "delta": "Delta vs riferimento aggiornato", "dual_display": "Dashboard e Driving Display simultanei",
+    "corner_analysis": "Analisi delle curve", "coach_instruction": "Istruzione di guida generata", "lap_review": "Analisi di fine giro generata",
+    "coach_memory": "Memoria del coach salvata (consigli, abitudini, giri)", "delta": "Delta vs riferimento aggiornato", "dual_display": "Dashboard e Driving Display simultanei",
 }
 
 
@@ -23,7 +24,7 @@ def _st(ok: bool | None, evidence: str) -> dict:
 
 
 def build(*, snapshot: dict, map_payload: dict, engine_diag: dict, lmu_process: bool | None, live_status: dict, clients: int | None = None,
-          app_version: str = "") -> dict:
+          app_version: str = "", coach: dict | None = None) -> dict:
     synthetic = bool(snapshot.get("synthetic") or engine_diag.get("synthetic"))
     sess, ref, delta, mp = snapshot.get("session") or {}, snapshot.get("reference") or {}, snapshot.get("delta") or {}, map_payload or {}
     zones = mp.get("zones") or []
@@ -52,6 +53,21 @@ def build(*, snapshot: dict, map_payload: dict, engine_diag: dict, lmu_process: 
     ana = bool(last)
     steps["corner_analysis"] = _st(ana, f"ultimo giro analizzato: giro {last['lap']} vs {last['ref_lap']}, {len(last['findings'])} rilievi" if last
                                    else f"nessun giro analizzato (giri di riferimento: {ref.get('laps')}/2 necessari)")
+    sug = snapshot.get("suggestion") or {}
+    main = sug.get("main") or {}
+    if main.get("instruction"):
+        steps["coach_instruction"] = _st(True, f"{main['instruction'].get('text')} (affidabilità {(main.get('confidence') or {}).get('level')})")
+    elif ana and sug.get("state") == "quiet":
+        steps["coach_instruction"] = _st(True, "giro analizzato: nessun problema significativo da correggere")
+    else:
+        steps["coach_instruction"] = _st(False, f"nessuna istruzione (stato suggerimento: {sug.get('state')})")
+    rv = snapshot.get("review")
+    steps["lap_review"] = _st(bool(rv), f"revisione del giro {rv['lap']}: {rv['summary'][:90]}" if rv else "nessuna revisione di fine giro ancora generata")
+    if coach is None:
+        steps["coach_memory"] = _st(None, "riepilogo memoria non fornito")
+    else:
+        n_tips = sum((coach.get("tips_by_status") or {}).values())
+        steps["coach_memory"] = _st(coach.get("laps_analysed", 0) >= 1, f"{coach.get('laps_analysed', 0)} giri e {n_tips} consigli in memoria locale (dati {'sintetici' if coach.get('synthetic') else 'reali'})")
     steps["delta"] = _st(bool(delta.get("available")), f"delta={delta.get('to_ref_s')} s vs giro {delta.get('ref_lap')}" if delta.get("available") else "delta non disponibile (serve un giro di riferimento)")
     steps["dual_display"] = _st(None if clients is None else clients >= 2,
                                 "apri dashboard e /driving-display e confronta modalità, delta e suggerimento: devono coincidere (stesso stato, seq=%s)" % snapshot.get("seq")

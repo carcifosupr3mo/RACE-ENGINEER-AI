@@ -192,3 +192,16 @@ Prima dell'uscita in pista l'unica cosa che i test sintetici NON possono dire è
 * Il PC e il dispositivo devono stare nella stessa rete (stesso Wi-Fi/switch); alcune reti «ospiti» isolano i client tra loro.
 * Il dispositivo client richiede **solo un browser moderno** (Chromium/Firefox/Safari): nessuna installazione. Tasto `F` o pulsante «tutto schermo» per il fullscreen; su un Raspberry anche `chromium-browser --kiosk "<URL>"`.
 * Se la connessione cade, il display mostra «CONNESSIONE PERSA» e si riconnette da solo con back-off; richiede il PC acceso e l'app in esecuzione.
+
+## 11. Ingegnere di pista: come funziona e procedura di test reale con LMU
+
+### 11.1 Cosa fa
+- **In guida**: una sola istruzione alla volta (cosa/dove/come/perché/obiettivo), legata a una curva (numerazione provvisoria P1, P2…), con affidabilità e dati mancanti dichiarati. Durante frenata/curva l'istruzione è congelata e il Display mostra solo il titolo. Se non c'è nulla di affidabile non dice nulla.
+- **Tra i giri**: «Analisi giro N» (vs miglior giro e giro precedente, curve migliorate/peggiorate, consigli applicati o no, errore ricorrente, prossimo obiettivo). Un giro con pioggia o temperatura pista molto diverse dal riferimento è dichiarato non confrontabile e non giudica i consigli.
+- **Memoria** (SQLite locale, stesso catalogo): consigli e loro esito, abitudini, giri analizzati, preferenze (`GET/PUT /api/coach/prefs`: confidenza minima, verbosità, durata analisi, consigli per curva). Un consiglio ignorato due volte viene ri-valutato (priorità ridotta), non ripetuto all'infinito.
+- Solo testo, nessuna voce. Nessun upload di telemetria; l'AI è opzionale e non necessaria.
+- Non misurabile con i canali acquisiti (quindi mai affermato): traffico, sotto/sovrasterzo, pattinamento, differenze di setup.
+
+### 11.2 Procedura di test reale (13 passi) — NON ancora eseguita
+1. Avvia l'app (`AVVIA_CON_DISPLAY.bat`). 2. Avvia LMU ed entra in pista. 3. Controlla che la sessione sia riconosciuta (tipo, circuito, vettura). 4. Verifica la Shared Memory acquisita. 5. Verifica la frequenza effettiva (≥ 5 Hz, atteso ~50–100). 6. Confronta velocità, giri motore, marcia, freno e gas con l'HUD di LMU. 7. Completa ≥ 3 giri puliti: i giri devono essere riconosciuti. 8. Verifica che le curve siano identificate (mappa dalle posizioni reali). 9. Verifica che le zone di frenata corrispondano alla pista. 10. Controlla la comparazione giro/riferimento (delta). 11. Controlla che compaia un'istruzione con spiegazione e un'analisi di fine giro. 12. Verifica che dashboard e Display mostrino lo stesso stato. 13. Chiudi e riavvia l'app: consigli, abitudini e giri devono essere ancora presenti (`/api/coach/summary`).
+Poi `python -m race_engineer live-check` (o `VERIFICA_DISPLAY.bat`): il report (nessun nome pilota/percorso/chiave) include i passi `coach_instruction`, `lap_review`, `coach_memory`. Non si modificano file di LMU. **Finché non arrivano dati reali analizzati, l'integrazione con LMU reale NON è verificata.**

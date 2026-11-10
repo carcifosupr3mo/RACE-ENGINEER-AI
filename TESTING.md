@@ -31,3 +31,8 @@ bundle/exe Windows, installer; AI con LLM reale; tray/notifiche; analisi e front
 
 ## Smoke del bundle / sorgente
 `python scripts/smoke_bundle.py --source` oppure `python scripts/smoke_bundle.py dist/RaceEngineerAI` (CLI, verify-lmu senza LMU = NON verificato, serve sintetico, /app/, /diag, chat a regole, spegnimento, persistenza dopo riapertura, shell desktop). Nessun test qui dice nulla su LMU reale: vedi docs/VALIDATION.md.
+
+## Coaching (0.6.0, SINTETICO)
+- `backend/tests/test_coach.py`: istruzioni per ogni tipo (nessuna distanza inventata a confidenza bassa), comparabilità, ciclo di vita su sessione «mixed», persistenza al riavvio, abitudine/occasionale/corretto, separazione reale/sintetico, preferenze, consigli opposti, ri-valutazione, giri non confrontabili, chiusura consigli mai mostrati, API.
+- `frontend/e2e/display.cjs`: istruzione (come/perché/obiettivo), analisi di fine giro, coerenza dashboard/display/REST, memoria coach.
+- Nessuno di questi test sostituisce la verifica con LMU reale (vedi `docs/UNIFIED_DRIVING_DISPLAY.md` §11).

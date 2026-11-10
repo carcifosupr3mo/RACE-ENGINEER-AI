@@ -10,7 +10,7 @@
 .d-mut{color:var(--d-mut)} .d-link{color:var(--d-mut);font-size:.85em}
 .d-chip{border:1px solid var(--d-line);border-radius:.4em;padding:.1em .5em;font-size:.85em}.d-chip.hi{color:var(--d-ok);border-color:var(--d-ok)}.d-chip.mid{color:var(--d-warn);border-color:var(--d-warn)}.d-chip.lo{color:var(--d-bad);border-color:var(--d-bad)}
 .d-offline{background:#3a0f10;color:#ffd5d5;font-weight:700;text-align:center;padding:.5em;font-size:1.1em}
-.d-body{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1.5fr) minmax(280px,1fr);gap:.8em;padding:.8em}
+.d-body{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1.6fr) minmax(260px,1fr);gap:.8em;padding:.8em}
 .d-mapwrap{position:relative;min-height:0;background:var(--d-pan);border:1px solid var(--d-line);border-radius:.6em;overflow:hidden}
 .d-map{position:absolute;inset:0}.d-map svg{width:100%;height:100%;touch-action:none;cursor:grab;display:block}
 .d-map-empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--d-mut);text-align:center;padding:2em;font-size:1.2em}
@@ -36,7 +36,20 @@
 .d-sug{background:var(--d-pan);border:2px solid var(--d-acc);border-radius:.6em;padding:.5em .8em}.d-sug .txt{font-size:clamp(20px,4.2vmin,48px);font-weight:700;line-height:1.15;margin:.15em 0}
 .d-sug .meta{display:flex;gap:.6em;align-items:center}.d-sug.frozen{opacity:.85}.d-sug.learning,.d-sug.quiet{border-color:var(--d-line);color:var(--d-mut)}
 .d-alerts{display:flex;flex-direction:column;gap:.3em}.d-alert{border-radius:.4em;padding:.35em .7em;font-weight:700}.d-alert.critical{background:var(--d-bad);color:#fff}.d-alert.warn{background:var(--d-warn);color:#000}.d-alert.info{background:#16202a;color:var(--d-tx)}
-@media (max-aspect-ratio:1/1),(max-width:560px){.d-body{grid-template-columns:1fr;grid-template-rows:minmax(0,1fr) auto}.d-mapwrap{min-height:36vh}}
+@media (max-aspect-ratio:1/1),(max-width:560px){.d-body{grid-template-columns:1fr;grid-template-rows:minmax(0,1fr) minmax(0,.9fr)}.d-side .d-mapwrap{min-height:24vh}}
 @media (max-height:520px){.d-top{padding:.2em .6em}.d-row3 .d-box small{display:none}.d-pedals{height:36px}}
 
 .d-fs{margin-left:auto;background:none;border:0;cursor:pointer;font:inherit;padding:0;text-decoration:underline}
+
+/* coach-first layout: the instruction is the biggest thing on the screen, the map is secondary */
+.d-coach{display:flex;flex-direction:column;gap:.6em;min-height:0;overflow:auto}
+.d-coach .d-sug{flex:1;display:flex;flex-direction:column;justify-content:center}
+.d-coach .d-sug .txt{font-size:clamp(26px,6vmin,72px)}
+.d-detail{display:flex;flex-direction:column;gap:.4em;font-size:clamp(16px,2.6vmin,30px);margin:.3em 0}
+.d-how{font-weight:600}.d-goal{color:var(--d-ok)}
+.d-note{border-left:4px solid var(--d-acc);padding:.1em .6em;font-size:.85em}.d-note.warn{border-color:var(--d-warn);color:var(--d-warn)}
+.d-review{background:var(--d-pan);border:2px solid var(--d-warn);border-radius:.6em;padding:.5em .8em}
+.d-review small{color:var(--d-warn);letter-spacing:.1em;font-size:.7em;display:block}
+.d-review .rv-sum{font-size:clamp(16px,2.8vmin,32px);line-height:1.3;margin-top:.2em}
+.d-side .d-mapwrap{flex:1;min-height:140px}
+.d-corner{font-size:1.2em}

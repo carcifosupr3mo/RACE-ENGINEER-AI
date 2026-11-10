@@ -269,7 +269,7 @@ def test_live_check_is_synthetic_never_real_and_has_no_personal_data(tmp_path, c
     r = c.get("/api/engineer/checklist").json()
     assert r["data_provenance"] == "synthetic" and r["verdict"] == "SYNTHETIC_NOT_REAL"          # a synthetic run can never certify the real chain
     assert r["steps"]["lmu_process"]["status"] == "unverified" and r["steps"]["shared_memory"]["status"] == "unverified"
-    for k in ("session", "track", "samples", "map", "braking_points", "acceleration_points", "corner_analysis", "delta"):
+    for k in ("session", "track", "samples", "map", "braking_points", "acceleration_points", "corner_analysis", "coach_instruction", "lap_review", "coach_memory", "delta"):
         assert r["steps"][k]["status"] == "ok", (k, r["steps"][k])
     assert r["order"] == list(r["titles"]) or set(r["order"]) == set(r["titles"])
     md = c.get("/api/engineer/checklist?format=md").text
