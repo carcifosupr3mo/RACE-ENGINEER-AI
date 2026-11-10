@@ -134,3 +134,13 @@ I due hash sono stati ricalcolati sui file estratti e coincidono con `SHA256SUMS
   - `RaceEngineerAI-win32.zip`: `312f913b4c18af9554bf42821a0a9291342621fa347fcc4960d67655c2db63c1`
 - Questo commit di documentazione avvia una nuova run CI; i checksum sopra si riferiscono SOLO alla run 14 (`ddb972a`), non alla run successiva.
 - Verificato su Windows (CI): build, installer, smoke, procedura PowerShell. **NON verificato con LMU reale.**
+
+## Esito CI del commit `fbc6faa` (audit coaching) — [run 16 `42799276490`](https://github.com/carcifosupr3mo/RACE-ENGINEER-AI/actions/runs/42799276490), 2026-11-10: **success** (5 job su 5)
+- Contesto: la run 15 (`83b5f21`, solo documentazione) era **fallita** nel job `display-e2e` (a 800×480 il riquadro dell'istruzione usciva dallo schermo); causa corretta in `fbc6faa` (Display minimale in guida). Le run 14 e 15 non vanno confuse con questa.
+- Job: backend, frontend, display-e2e, windows-procedure (PS 5.1 e 7), windows-bundle (exe congelato, installer, installazione silenziosa + smoke della copia installata, procedura PowerShell sull'exe congelato): tutti `success`.
+- Test locali pre-push (SINTETICI): pytest completo, vitest, smoke sorgente 30/30, e2e Playwright del Display, tutti passati; `live-check` su sintetico = codice 3 (voluto).
+- Artefatto `RaceEngineerAI-windows` (id 13756062040, digest GitHub = SHA-256 dello zip scaricato, verificato): `08f096873e496588dab6d35e4a97c717570f0b5825a26a4dd7abf2ca8e6a636f`
+  - `RaceEngineerAI-Setup-0.1.0.exe`: `1116a7bc716050259e6c9aea9eee7e674e13926ed9a8ef6411b751afe14080d5`
+  - `RaceEngineerAI-win32.zip`: `6d74ed7b6f9649b23394640ee7eba452ed564225b976be34968e2645b766e4b1`
+- Questi checksum valgono SOLO per la run 16 (`fbc6faa`); non riutilizzano quelli della run 14. Il commit documentale che li registra avvia un'ulteriore run, il cui esito non è verificato qui.
+- Verificato su Windows (CI): build, installer, smoke, procedura PowerShell. **NON verificato con LMU reale.**
