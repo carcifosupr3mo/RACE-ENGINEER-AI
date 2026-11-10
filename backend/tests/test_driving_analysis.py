@@ -258,3 +258,19 @@ def test_gear_choice_is_reported_only_with_a_measured_loss(tpf):
     slow = _penalised(lap, c, 0.2, 5.0)
     f = next(f for f in analyse(slow, ref, cs)["findings"] if f["type"] == "gear_choice" and f["corner"] == c.id)
     assert f["evidence"]["lap_gear"] == f["evidence"]["ref_gear"] + 1
+
+
+@pytest.mark.parametrize("channel,lo,hi", [("brake", -120, 0), ("throttle", 0, 50), ("speed_kmh", -5, 45), ("steering", -30, 30)])
+def test_missing_samples_never_read_as_zero_input(tpf, channel, lo, hi):
+    """A gap (NaN) in the telemetry must make the metric NOT MEASURABLE. Regression: a 50 m NaN gap in the throttle after the apex was read as
+    'throttle closed' and produced a false delayed_acceleration with confidence 'alta'. SYNTHETIC laps, identical to the reference except for the gap."""
+    import copy
+    al = laps_for(tpf, "constant", 4)
+    ref, lap = al[0], copy.deepcopy(al[1])
+    cs = detect_corners(ref)
+    assert not analyse(lap, ref, cs)["findings"]                  # identical behaviour -> nothing, before the gap is introduced
+    for c in cs:
+        broken = copy.deepcopy(lap)
+        m = (broken.grid >= c.apex_m + lo) & (broken.grid <= c.apex_m + hi)
+        broken.ch[channel][m] = np.nan
+        assert not analyse(broken, ref, cs)["findings"], (channel, c.id)

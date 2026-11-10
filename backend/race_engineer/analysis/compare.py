@@ -46,12 +46,17 @@ def corner_metrics(lap: AlignedLap, c: Corner, ref: AlignedLap | None = None, re
     bstart = float(g[bidx[0]]) if len(bidx) else None
     brel = float(g[bidx[-1]]) if len(bidx) else None
     bpeak = float(np.nanmax(br[pre])) if len(bidx) else 0.0
+    if np.isnan(br[pre]).any():
+        # missing brake samples inside the approach window: where braking starts/ends is NOT measurable (NaN must never read as "no brake")
+        bstart = brel = bpeak = None
     win = (g >= c.apex_m - 40) & (g <= c.apex_m + 40)
     if not np.isfinite(v[win]).any():
         return CornerMetrics(c.id, bstart, brel, bpeak, None, None, None, None, None, None)
     k = int(np.nanargmin(np.where(win, v, np.nan)))
     after = (g > g[k]) & (g <= c.exit_m + 150)
     pick = _first(after & (np.nan_to_num(th) >= THROTTLE_PICKUP), g)
+    if np.isnan(th[after if pick is None else after & (g <= pick)]).any():
+        pick = None          # missing throttle samples before the pick-up: the pick-up point is not measurable (NaN must never read as "no throttle")
     exit_idx = int(np.argmin(np.abs(g - c.exit_m)))
     coast = zone & (np.nan_to_num(th, nan=1) < 0.05) & (np.nan_to_num(br, nan=1) < 0.05)
     dt = np.gradient(lap.t)

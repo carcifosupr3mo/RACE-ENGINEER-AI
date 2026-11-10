@@ -1,4 +1,9 @@
 # CHANGELOG
+## 0.6.2 (non rilasciata) — Verifica pre-test reale
+- **Run 17 (`193f0ce`, solo documentazione) fallita** nel job `display-e2e` con codice identico alla run 16 verde: l'e2e cercava un consiglio la cui finestra (errore su 3 giri) dipendeva dalla velocità della macchina. Il test era non deterministico; nuovo scenario sintetico `persistent` (errore su tutti i giri) usato da CI/e2e. Nessun cambiamento al comportamento del coach per questo.
+- **Difetto reale corretto (audit unità/valori mancanti):** un buco di telemetria ≤ 50 m (NaN) sul gas dopo l'apice veniva letto come «gas chiuso» → falso `delayed_acceleration` con confidenza «alta». Ora metrica non misurabile se mancano campioni (gas prima della ripresa, freno nella finestra di frenata). Test di regressione (fallisce senza la correzione).
+- e2e: controllo che il testo «come» sia ≤ 3 righe e che il riquadro resti nello schermo (anche 800×480), con osservazione effettiva.
+- `docs/COACHING.md` §6: tabella delle unità per ogni segnale.
 ## 0.6.1 (non rilasciata) — Audit del coaching
 - **Run 15 (commit solo documentale) fallita** nel job `display-e2e`: a 800×480 il riquadro dell'istruzione usciva dallo schermo (la spiegazione lunga rendeva il riquadro troppo alto). Causa reale: il Display mostrava testo lungo anche in guida. Corretto: in guida solo titolo + «come» (max 3 righe); perché/obiettivo/abitudine e analisi completa solo sotto 30 km/h.
 - Un rilievo diventa consiglio solo se ripetuto in ≥ 2 degli ultimi 3 giri analizzati (un giro cattivo isolato è rumore); il primo consiglio non arriva prima del 3° giro analizzato.

@@ -30,3 +30,22 @@ Il sistema misura solo se il comportamento rilevato è cambiato; **non può sape
 
 ## 5. Display
 In guida: una sola istruzione, titolo + «come» (max 3 righe); «perché/obiettivo/abitudine» e l'analisi completa solo a vettura quasi ferma (< 30 km/h); durante frenata/curva l'istruzione è congelata.
+
+## 6. Audit delle unità (verificato sul codice, pre-test reale)
+| Segnale | Origine (`lmu/decode.py`, layout rFactor2/LMU) | Conversione | Uso nel coaching | Note |
+|---|---|---|---|---|
+| velocità | `mLocalVel` (m/s, vettore) | `3,6·‖v‖` → km/h (test `test_reader_decode`: 50 m/s = 180 km/h) | minima, uscita, differenze in **km/h** | soglie 2–3 km/h |
+| distanza | `mLapDist` (m) | nessuna | griglia di allineamento a 1 m; tutte le distanze in **m** (frenata, rilascio, gas, trail) | verificata contro differenze note nei test sintetici (−40 m, +35 m) |
+| tempo | `mElapsedTime` (s) | nessuna | tempi di fase e impatto in **s** | soglie 0,02–0,03 s |
+| gas, freno | `mUnfilteredThrottle/Brake` (0..1) | nessuna | soglie adimensionali 0,10 / 0,90 / 0,05 | `verify-lmu` controlla 0..1; **da confermare con LMU reale** |
+| sterzo | `mUnfilteredSteering` (−1..1) | `abs` | soglia trail = max(0,05; 25 % del massimo) | adimensionale |
+| marcia | `mGear` (−1 R, 0 N, 1..) | nessuna | confronto solo se > 0 su entrambi i giri | |
+| pioggia | `mRaining` (0..1) | nessuna | limite 0,15 (euristico) | |
+| temperatura pista | `mTrackTemp` (°C) | nessuna | limite 10 °C (euristico) | |
+| usura gomme | `mWear` (frazione 0..1, **verso del valore da confermare su LMU**) | nessuna | solo differenza assoluta ≥ 0,15 → avviso | indipendente dal verso |
+| carburante | `mFuel` (L) | nessuna | differenza ≥ 20 L → avviso | |
+| accelerazione / pressione freno in unità fisiche | **non acquisite/usate** | – | il freno è 0..1 (intensità), non bar | nessun rilievo dipende da accelerazioni |
+
+**Valori mancanti (difetto trovato e corretto):** un buco di telemetria (NaN) fino a 50 m (tollerato dal controllo di qualità dell'allineamento) veniva letto come «gas chiuso/freno assente» e poteva produrre un falso `delayed_acceleration` con confidenza «alta». Ora, se mancano campioni prima del punto di ripresa del gas, o nella finestra di frenata, la metrica non è misurabile (`None`) e nessuna regola scatta (`test_missing_samples_never_read_as_zero_input`, fallisce senza la correzione).
+
+Limiti: le unità sono verificate sul codice e sul layout; **non** con dati LMU reali (il passo 4 della procedura reale le confronta con l'HUD).

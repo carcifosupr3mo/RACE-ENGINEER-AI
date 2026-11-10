@@ -103,6 +103,11 @@ const INIT = () => {          // test hook: keep every WebSocket reachable and a
     check(`${name}: no horizontal scroll`, m.sw <= m.iw + 1, `${m.sw}/${m.iw}`)
     check(`${name}: map visible with useful size`, m.map && m.map.w > 250 && m.map.h > 120, JSON.stringify(m.map))
     check(`${name}: delta and suggestion fully inside the screen (not clipped or scrolled away)`, m.delta && m.sug && m.delta.t >= -1 && m.sug.t >= -1 && m.delta.b <= m.ih + 1 && m.sug.b <= m.ih + 1 && m.sug.r <= m.iw + 1, `delta.b=${m.delta && m.delta.b} sug.b=${m.sug && m.sug.b} ih=${m.ih}`)
+    await p.waitForSelector('.d-how', { timeout: 30000 }).catch(() => {})      // the persistent scenario keeps an instruction; the detail is hidden only while the driver is busy
+    const lines = await p.evaluate(() => { const e = document.querySelector('.d-how'); if (!e) return null; const lh = parseFloat(getComputedStyle(e).lineHeight) || parseFloat(getComputedStyle(e).fontSize) * 1.2; return Math.round(e.getBoundingClientRect().height / lh) })
+    check(`${name}: the "how" text is at most 3 lines (and it was actually observed)`, lines !== null && lines <= 3, String(lines))
+    const box = await p.evaluate(() => { const e = document.querySelector('[data-testid=display-suggestion]'); const r = e && e.getBoundingClientRect(); return r && { b: r.bottom, ih: innerHeight } })
+    check(`${name}: instruction box with the "how" text fully on screen`, !!box && box.b <= box.ih + 1, JSON.stringify(box))
     await p.screenshot({ path: `${shots}/display-${name}.png` })
   }
   check('no console/page errors', errs.length === 0, errs.slice(0, 3).join(' | '))

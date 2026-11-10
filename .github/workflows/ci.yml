@@ -34,7 +34,7 @@ jobs:
         working-directory: frontend
         run: |
           mkdir -p "$RUNNER_TEMP/red" && export RACE_ENGINEER_DATA="$RUNNER_TEMP/red"
-          python -m race_engineer serve --synthetic repeated --laps 12 --synthetic-speed 6 --port 8790 &
+          python -m race_engineer serve --synthetic persistent --laps 12 --synthetic-speed 6 --port 8790 &
           for i in $(seq 1 60); do curl -sf http://127.0.0.1:8790/api/health && break; sleep 1; done
           node e2e/display.cjs http://127.0.0.1:8790 "$RUNNER_TEMP/shots"
       - uses: actions/upload-artifact@v4

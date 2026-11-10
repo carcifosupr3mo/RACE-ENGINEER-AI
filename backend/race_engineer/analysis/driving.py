@@ -116,8 +116,10 @@ def driving_metrics(lap: AlignedLap, c: Corner) -> DrivingMetrics:
     if base.min_speed_m is not None:
         k = _ix(g, base.min_speed_m)
         hi = min(len(g), _ix(g, c.exit_m + 150) + 1)
-        on = np.flatnonzero(np.nan_to_num(th[k:hi]) >= 0.10)
-        dm.throttle_on_m = float(g[k + int(on[0])]) if len(on) else None
+        raw = th[k:hi]
+        on = np.flatnonzero(np.nan_to_num(raw) >= 0.10)
+        gap = np.isnan(raw[:(int(on[0]) + 1) if len(on) else len(raw)]).any()      # NaN before the pick-up must not read as "throttle closed"
+        dm.throttle_on_m = float(g[k + int(on[0])]) if len(on) and not gap else None
     if st is not None:
         a, b = _ix(g, c.apex_m - 30), _ix(g, c.apex_m + 30)
         s = np.abs(st[a:b + 1])
@@ -136,7 +138,7 @@ def driving_metrics(lap: AlignedLap, c: Corner) -> DrivingMetrics:
         hi = min(len(g), _ix(g, c.exit_m + 150) + 1)
         tw = np.nan_to_num(th[k:hi])
         lo10, hi90 = np.flatnonzero(tw >= 0.10), np.flatnonzero(tw >= 0.90)
-        if len(lo10) and len(hi90) and hi90[0] >= lo10[0]:
+        if len(lo10) and len(hi90) and hi90[0] >= lo10[0] and not np.isnan(th[k:hi][:int(hi90[0]) + 1]).any():
             dm.throttle_ramp_m = float(g[k + int(hi90[0])] - g[k + int(lo10[0])])
         gr = lap.ch.get("gear")
         if gr is not None and np.isfinite(gr[k]):
