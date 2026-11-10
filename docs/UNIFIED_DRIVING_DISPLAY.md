@@ -143,3 +143,52 @@ riconnessione, sicurezza LAN), vitest (formattazione, back-off), Playwright sul 
 * Secondo monitor (posizionamento a tutto schermo su Windows con più schermi), tray, Raspberry reale, Wi-Fi reale e firewall **non sono stati provati** su hardware: coperti solo dalla CI Windows (senza monitor secondario) e da Chromium headless su Linux.
 * L'interpretazione AI (`driving_analysis`) è provata solo con provider finti; nessuna richiesta reale NVIDIA/Groq.
 * Installer/exe non firmati (SmartScreen può avvisare).
+
+---
+
+## 8. Audit di unicità (verificato sul codice, non solo dichiarato)
+
+| Requisito | Dove vive (unico) | Come si è verificato |
+|---|---|---|
+| Un solo sistema di acquisizione | `acquisition/engine.py::AcquisitionEngine`, una sola istanza per processo (`desktop/main.py`, `__main__.py`); `lmu/verify.py` ne crea una **separata solo** per la registrazione di prova a riga di comando, mai insieme all'app | `grep AcquisitionEngine(` sul pacchetto |
+| Un solo Session Manager | `AcquisitionEngine` + `storage/catalog.py` (catalogo/sessioni); `LiveEngineer` non ne ha uno proprio: segue `engine.session_id` / `ctx` | lettura del codice, `test_live_engineer.py` |
+| Un solo Lap Analyzer | `analysis/laps.segment_laps` → `analysis/align.align_lap` → `analysis/driving.analyse`; usati dal live (`live/engineer.py`), dall'API offline (`/api/sessions/{id}/driving`) e dai fatti AI (`ai/facts.py`) | `test_live_analysis_equals_offline_driving_analysis_of_the_recorded_session` |
+| Un solo motore AI | `ai/engineer.py` + `ai/providers.AIRequestQueue` (una coda per processo, creata in `endurance/service.py`); il live vi accoda solo `driving_analysis` | grep `AIRequestQueue(` |
+| Un solo stato condiviso | `LiveEngineer.snapshot()` → campo WS `engineer`, `/api/engineer/state`, dashboard, display, fatti AI | test WS == REST; Playwright dashboard == display == REST |
+| Nessun calcolo nel frontend | `frontend/src/display/*` formatta soltanto; nessuna analisi o delta ricalcolato | lettura del codice |
+
+Nota onesta: `analysis/driver.py` e `ai/facts.py` costruiscono il riferimento **della sessione registrata** (analisi a posteriori), mentre il live usa il riferimento personale persistente. Usano la stessa funzione di analisi ma possono scegliere un giro di riferimento diverso (il migliore della sessione vs il migliore storico): non è un secondo motore, ed è dichiarato nel campo `ref_lap` di ogni risultato.
+
+## 9. Procedura per il primo test REALE con LMU (Windows)
+
+Prima dell'uscita in pista l'unica cosa che i test sintetici NON possono dire è se LMU e il lettore concordano. Tutto è in sola lettura; nessun file di LMU viene toccato; nulla viene caricato.
+
+1. **Installa** da `RaceEngineerAI-Setup-<ver>.exe` (artefatto CI); controlla lo SHA256 con `SHA256SUMS.txt` (`Get-FileHash`). L'installer non è firmato: SmartScreen può avvisare.
+2. **LMU**: *Settings → Gameplay → Enable Plugins = ON*, chiudi e riavvia LMU del tutto. Carica una sessione (anche prove libere) ed entra in pista. (L'app non cambia mai le impostazioni di LMU.)
+3. **Verifica base della Shared Memory** (60 s di guida): doppio clic su `VERIFICA_LMU.bat` e confronta velocità/giri/marcia a schermo con la tabella finale. Se il verdetto non è «REALE» **fermati e inviami il report**: il resto non ha senso.
+4. **Avvia con il display**: `AVVIA_CON_DISPLAY.bat` (porta fissa 8765). Si apre la dashboard; il Driving Display va sul secondo monitor (`Ctrl+D`, `F` o il pulsante «tutto schermo»). Per un browser sul PC: `http://127.0.0.1:8765/driving-display`.
+5. **Guida almeno 4 giri validi** (i primi 2 servono a imparare il circuito: il display mostra «APPRENDIMENTO»). Controlla a vista:
+   * banner «DATI SINTETICI» **assente** (se c'è, i dati non vengono da LMU);
+   * circuito, vettura e modalità sessione corretti in alto;
+   * la mappa compare dopo il primo giro completo e somiglia al circuito (l'orientamento è quello degli assi di gioco: può essere ruotato/specchiato, **è un limite noto non verificato**);
+   * zone rosse (frenata) all'inizio delle curve, verdi (accelerazione) all'uscita;
+   * il delta cambia durante il giro e coincide, con qualche decimo di tolleranza, col delta del HUD di LMU se ne hai uno attivo;
+   * dashboard (pagina «Live») e display mostrano **la stessa modalità, lo stesso delta e lo stesso suggerimento**.
+6. **Report diagnostico completo**: `VERIFICA_DISPLAY.bat` (con l'app ancora aperta). Produce `%LOCALAPPDATA%\RaceEngineerAI\reports\live-check-<data>.md/.json` con 11 passi (processo LMU, Shared Memory, sessione, circuito, campioni, mappa, frenate, accelerazioni, analisi curve, delta, doppio schermo), ognuno `OK / MANCA / NON VERIFICABILE` con l'evidenza e la dicitura **dati REALI o SINTETICI**. Nessun nome pilota, percorso utente o chiave. Codice di uscita `0` solo con dati reali e tutti i passi automatici OK; `3` incompleto o sintetico; `2` app non raggiungibile.
+   Da riga di comando: `race-engineer-cli.exe live-check --port 8765`. Dal browser: `http://127.0.0.1:8765/api/engineer/checklist?format=md`.
+7. **Allega** il report `live-check` (e quello di `VERIFICA_LMU`) quando segnali un problema.
+
+**Cosa NON prova questa procedura**: che gli offset della Shared Memory siano corretti in ogni versione di LMU (lo dice `verify-lmu`/confronto HUD), la qualità dei suggerimenti nel giudizio di un pilota, il comportamento su più giorni/endurance reali. Il verdetto automatico non sostituisce il confronto con il HUD.
+
+## 10. Rete locale e firewall (nessuna modifica al router)
+
+* Default: l'app ascolta **solo** su `127.0.0.1`; da altri dispositivi non è raggiungibile.
+* Per un Raspberry/tablet: avvia con `--lan` (`RaceEngineerAI.exe --port 8765 --lan` oppure `race-engineer-cli.exe serve --lan --port 8765`). L'app stampa/mostra gli URL `http://IP-DEL-PC:8765/driving-display?token=…` per ogni IP privato trovato. Il token è obbligatorio per `/api` e `/ws` (senza token: 403).
+* **Firewall di Windows**: alla prima apertura in LAN Windows chiede il permesso: scegli **solo «Reti private»**. In alternativa, regola esplicita da PowerShell *amministratore* (sul **PC**, non sul router; adatta il percorso):
+  ```powershell
+  New-NetFirewallRule -DisplayName "Race Engineer AI Display" -Direction Inbound -Protocol TCP -LocalPort 8765 -Profile Private -Action Allow -Program "$env:LOCALAPPDATA\Programs\RaceEngineerAI\RaceEngineerAI.exe"
+  ```
+  Per rimuoverla: `Remove-NetFirewallRule -DisplayName "Race Engineer AI Display"`. Non aprire la porta sul profilo *Pubblico*, non fare port-forwarding sul router, non esporre su Internet.
+* Il PC e il dispositivo devono stare nella stessa rete (stesso Wi-Fi/switch); alcune reti «ospiti» isolano i client tra loro.
+* Il dispositivo client richiede **solo un browser moderno** (Chromium/Firefox/Safari): nessuna installazione. Tasto `F` o pulsante «tutto schermo» per il fullscreen; su un Raspberry anche `chromium-browser --kiosk "<URL>"`.
+* Se la connessione cade, il display mostra «CONNESSIONE PERSA» e si riconnette da solo con back-off; richiede il PC acceso e l'app in esecuzione.

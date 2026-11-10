@@ -253,3 +253,37 @@ def test_events_are_pushed_over_websocket(tmp_path, catalog):
                 break
     assert "lap_completed" in got
     e.stop()
+
+
+def test_live_check_is_synthetic_never_real_and_has_no_personal_data(tmp_path, catalog):
+    g = SyntheticGame("mixed", laps=8, session_code=1)
+    e = make_engine(g, tmp_path, catalog)
+    app = create_app(e, catalog, install=LmuInstall(), live_options=FAST)
+    live = app.state.live
+    while g.step():                                              # stop mid-session: the delta is a LIVE value
+        e.poll_once()
+        st = live.snapshot()
+        if (st.get("reference") or {}).get("laps", 0) >= 3 and (st.get("delta") or {}).get("available"):
+            break
+    c = TestClient(app, base_url="http://127.0.0.1")
+    r = c.get("/api/engineer/checklist").json()
+    assert r["data_provenance"] == "synthetic" and r["verdict"] == "SYNTHETIC_NOT_REAL"          # a synthetic run can never certify the real chain
+    assert r["steps"]["lmu_process"]["status"] == "unverified" and r["steps"]["shared_memory"]["status"] == "unverified"
+    for k in ("session", "track", "samples", "map", "braking_points", "acceleration_points", "corner_analysis", "delta"):
+        assert r["steps"][k]["status"] == "ok", (k, r["steps"][k])
+    assert r["order"] == list(r["titles"]) or set(r["order"]) == set(r["titles"])
+    md = c.get("/api/engineer/checklist?format=md").text
+    assert "SINTETICI" in md and "SYNTHETIC_NOT_REAL" in md
+    blob = json.dumps(r) + md
+    assert "driver_name" not in blob and "nvapi" not in blob and "gsk_" not in blob
+    e.stop()
+
+
+def test_live_check_real_requires_every_automatic_step():
+    from race_engineer.live import checklist as ck
+    snap = {"synthetic": False, "session": {"id": 1, "type": "practice", "track": "T", "track_length_m": 5000, "vehicle": "V", "mode": "practice"},
+            "reference": {"laps": 0}, "delta": {"available": False}, "last_lap": None, "suggestion": {"state": "learning"}, "seq": 1}
+    diag = {"synthetic": False, "state": "acquiring", "mapping": {"size": 324820, "expected_size": 324820}, "samples_received": 5000, "effective_hz": 60}
+    r = ck.build(snapshot=snap, map_payload={"available": False, "reason": "x"}, engine_diag=diag, lmu_process=True, live_status={})
+    assert r["data_provenance"] == "lmu_shared_memory" and r["verdict"] == "REAL_INCOMPLETE"
+    assert r["steps"]["shared_memory"]["status"] == "ok" and r["steps"]["map"]["status"] == "missing"

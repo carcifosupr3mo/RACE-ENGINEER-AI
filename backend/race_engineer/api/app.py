@@ -378,6 +378,17 @@ def create_app(engine: AcquisitionEngine, catalog: Catalog, *, lan_enabled: bool
     def engineer_status():
         return live.status()
 
+    @app.get("/api/engineer/checklist")
+    def engineer_checklist(format: str = "json"):
+        """Live-test checklist built from the SHARED state (same snapshot/map the dashboard and display use). Sanitised: no driver name, paths or keys."""
+        from fastapi.responses import PlainTextResponse
+        from ..live import checklist as _ck
+        from ..lmu.verify import sanitize_obj
+        rep = _ck.build(snapshot=live.snapshot(), map_payload=live.map_payload(), engine_diag=engine.diagnostics(),
+                        lmu_process=None if engine.synthetic else is_lmu_process_running(), live_status=live.status(), app_version=__version__)
+        rep = sanitize_obj(clean(rep))
+        return PlainTextResponse(_ck.to_markdown(rep), media_type="text/markdown; charset=utf-8") if format == "md" else rep
+
     @app.get("/api/display/info")
     def display_info(request: Request):
         """How to open the Driving Display (second monitor on this PC, or LAN browser). The page is served by this same backend."""

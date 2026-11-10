@@ -104,8 +104,11 @@ def main():
                 info["path"] == "/driving-display" and info["lan_enabled"] is False and info["lan_urls"] == [], info)
             mp = json.loads(get(base + "/api/engineer/map")[1])
             rec("/api/engineer/map answers (real positions or an explicit reason, never invented)", ("points" in mp) or ("reason" in mp), list(mp))
+            ck = json.loads(get(base + "/api/engineer/checklist")[1])
+            rec("/api/engineer/checklist labels synthetic data and never certifies them as real; no driver name/keys in it",
+                ck["verdict"] == "SYNTHETIC_NOT_REAL" and ck["data_provenance"] == "synthetic" and "driver" not in json.dumps(ck).lower(), ck["verdict"])
             fin = []
-            for _ in range(120):                                     # chat needs a finished session (the live one answers 409)
+            for _ in range(120):                                    # chat needs a finished session (the live one answers 409)
                 fin = [x for x in json.loads(get(base + "/api/sessions")[1]) if x["status"] != "recording" and x["samples"] > 0]
                 if fin:
                     break

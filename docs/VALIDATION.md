@@ -60,9 +60,9 @@ Test Python (offline, sintetici): `backend/tests/test_verification_flow.py` (pre
 
 ## Sistema unificato con Driving Display (v0.5.0) — SOLO dati sintetici, nessun LMU
 Eseguito in locale (Linux, sandbox), tutto **sintetico**:
-- backend: 182 pytest (157 preesistenti + 25 nuovi: `test_driving_analysis.py`, `test_live_engineer.py`).
+- backend: 184 pytest (157 preesistenti + 27 nuovi: `test_driving_analysis.py`, `test_live_engineer.py`).
 - frontend: 8 vitest (4 preesistenti + 4 nuovi); `npm run build` rigenerato in `webdist`.
-- `scripts/smoke_bundle.py --source`: 28 controlli (8 nuovi: pagina display, stato condiviso, info display, mappa, `--lan` token/403/URL), incluso lo shell desktop Qt WebEngine che renderizza il display.
+- `scripts/smoke_bundle.py --source`: 29 controlli (9 nuovi: pagina display, stato condiviso, info display, mappa, `--lan` token/403/URL), incluso lo shell desktop Qt WebEngine che renderizza il display.
 - Playwright `frontend/e2e/display.cjs`: banner sintetico, velocità live via WebSocket, stato di apprendimento, mappa da posizioni reali con zone, un solo suggerimento, delta, modalità sessione, zoom, tap su curva, coerenza dashboard/display/REST, stato offline e riconnessione automatica, 4 viewport (1280x800, 1024x600, 800x480, 600x1000) senza scroll né ritagli.
 
 **Non verificato**: LMU reale (posizioni, orientamento assi, numerazione curve su dati veri), secondo monitor fisico, Raspberry/tablet in LAN, provider AI reali, esito CI Windows di questo commit (vedi sezione CI dopo il push).
@@ -88,3 +88,17 @@ Eseguito in locale (Linux, sandbox), tutto **sintetico**:
 4. Trascina un file `UserData\Telemetry\*.duckdb` su `DIAGNOSI_DUCKDB.bat`; leggi `g_force_analysis.verdict`.
 5. `DIAGNOSI_SETUP.bat` (senza argomenti elenca i `.svm`; poi trascina uno).
 6. Chiavi: imposta `NVIDIA_API_KEY` / `GROQ_API_KEY` oppure incollale in Settings → AI; poi `TEST_AI.bat` o il pulsante "Prova reale".
+
+### Verifica finale locale del sistema unificato (2026-11-10, SINTETICA, esecuzione unica dopo le ultime modifiche)
+| Controllo | Comando | Exit code | Risultato |
+|---|---|---|---|
+| vitest | `npm test` | 0 | 8/8 |
+| build frontend | `npm run build` | 0 | webdist rigenerato |
+| backend | `pytest tests` | 0 | 184 test passati (nessun FAIL/Traceback nel log) |
+| smoke da sorgente | `scripts/smoke_bundle.py --source` | 0 | 29/29 (incl. shell desktop Qt WebEngine e `/api/engineer/checklist`) |
+| E2E Playwright Driving Display | `node e2e/display.cjs` | 0 | 38 controlli PASS: live, mappa, zone, suggerimento unico, coerenza dashboard/display/REST, fullscreen (pulsante e tasto F), offline + riconnessione, 4 viewport (1280x800, 1024x600, 800x480, 600x1000) senza scroll né ritagli |
+| `live-check` su dati sintetici | `race_engineer live-check` | 3 (atteso) | verdetto `SYNTHETIC_NOT_REAL`: un run sintetico non può certificare la catena reale |
+
+I messaggi `nanobind: leaked ...` stampati da DuckDB alla chiusura dell'interprete sono benigni e preesistenti (non cambiano l'exit code; l'esito conta dal codice di uscita e dal conteggio dei test). Il test «dashboard e display simultanei» su due schermi fisici NON è eseguibile da qui: Playwright usa due pagine dello stesso browser.
+
+Nuovo in questa fase: `/api/engineer/checklist` e `race-engineer-cli live-check` (report sanitizzato in 11 passi, dati REALI/SINTETICI espliciti), `AVVIA_CON_DISPLAY.bat`, `VERIFICA_DISPLAY.bat`, opzione `--port` della shell desktop, pulsante/tasto F per il tutto schermo + wake lock opzionale. Procedura reale e regole firewall: `docs/UNIFIED_DRIVING_DISPLAY.md` §9-10.

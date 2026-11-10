@@ -121,6 +121,26 @@ def cmd_preflight(args) -> int:
     return 0
 
 
+def cmd_live_check(args) -> int:
+    """Fetch the live checklist from a RUNNING local instance and save it (sanitised, never overwrites). Exit 0 only for REAL data with all automatic steps OK."""
+    import urllib.request
+    base = f"http://127.0.0.1:{args.port}"
+    try:
+        rep = json.load(urllib.request.urlopen(base + "/api/engineer/checklist", timeout=10))
+        md = urllib.request.urlopen(base + "/api/engineer/checklist?format=md", timeout=10).read().decode("utf-8")
+    except Exception as e:
+        print(f"cannot reach the running app on port {args.port}: {e}", file=sys.stderr)
+        return 2
+    out = Path(args.out) if args.out else Path(data_dir()) / "reports"
+    out.mkdir(parents=True, exist_ok=True)
+    stamp = time.strftime("%Y%m%d-%H%M%S")
+    (out / f"live-check-{stamp}.json").write_text(json.dumps(rep, indent=2, ensure_ascii=False), encoding="utf-8")
+    (out / f"live-check-{stamp}.md").write_text(md, encoding="utf-8")
+    print(md)
+    print("Report:", out / f"live-check-{stamp}.md")
+    return 0 if rep["verdict"] == "REAL_ALL_AUTOMATIC_STEPS_OK" else 3
+
+
 def cmd_hud_compare(args) -> int:
     from .lmu.hud import run
     rep, md = run(args.annotations, args.verify_report, out_dir=args.out)
@@ -221,6 +241,8 @@ def main(argv=None) -> int:
     p.set_defaults(fn=cmd_verify)
     p = sub.add_parser("preflight", help="JSON: app/commit, LMU install+process+mapping, DuckDB and setup files, writable report folder (no network, no keys)")
     p.add_argument("--shm-path"); p.add_argument("--save", help="also write a sanitised copy here (refuses to overwrite)"); p.set_defaults(fn=cmd_preflight)
+    p = sub.add_parser("live-check", help="checklist of the live chain (LMU->map->analysis->display) from the RUNNING app; sanitised report")
+    p.add_argument("--port", type=int, default=8765); p.add_argument("--out"); p.set_defaults(fn=cmd_live_check)
     p = sub.add_parser("hud-compare", help="compare HUD values you noted (JSON annotations with epoch/utc) with the verify-lmu recording")
     p.add_argument("--annotations", required=True); p.add_argument("--verify-report", required=True); p.add_argument("--out")
     p.set_defaults(fn=cmd_hud_compare)

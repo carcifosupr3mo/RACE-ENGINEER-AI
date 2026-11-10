@@ -1,5 +1,5 @@
 # TESTING
-`cd backend && python -m pytest tests` — ~150 test, ~3 min (include `test_validation_tools`, `test_ai_providers` con trasporto HTTP finto, `test_endurance` con simulazione 4 h). Frontend: `cd frontend && npm test` (vitest, 8) e, con backend avviato su dati sintetici
+`cd backend && python -m pytest tests` — ~150 test, ~3 min (include `test_validation_tools`, `test_ai_providers` con trasporto HTTP finto, `test_endurance` con simulazione 4 h). Frontend: `cd frontend && npm test` (vitest, 8; 184 pytest in totale) e, con backend avviato su dati sintetici
 (`RACE_ENGINEER_DATA=<dir> python scripts/seed_synthetic.py constant mixed`, poi `python -m race_engineer serve --synthetic constant --laps 30`),
 `NODE_PATH=$(npm root -g) node frontend/e2e/e2e.cjs http://127.0.0.1:8765 out.png` (Playwright, 19 controlli incl. pannello AI senza chiavi: banner sintetico, 7 grafici, mappa, cursore sincronizzato, osservazioni attese, nessun errore console).
 
@@ -8,6 +8,7 @@
 | Analisi di guida (fasi curva, riferimento personale, adattamento sessione) | `test_driving_analysis.py` | sintetici con differenze note |
 | Ingegnere live unificato (stato condiviso, suggerimento unico, WS, mappa, reset sessione) | `test_live_engineer.py` | sintetici |
 | Driving Display (Playwright, 4 viewport, offline/riconnessione, coerenza dashboard) | `frontend/e2e/display.cjs` (job CI `display-e2e`) | sintetici |
+| Live-check (verdetto sintetico mai reale, nessun dato personale, passo reale incompleto) | `test_live_engineer.py` | sintetici |
 | Layout (coerenza interna, NON verità LMU) | `test_layout.py` | — |
 | Lettura sola lettura, estrazione giocatore (non slot 0), conversioni, letture strappate | `test_reader_decode.py` | costruiti a mano |
 | Scenari | `test_synthetic_scenarios.py` | sintetici (giro costante/lento/frenata anticipata/tardiva/gas tardivo) |

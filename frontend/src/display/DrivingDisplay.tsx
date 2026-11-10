@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import TrackMap from './TrackMap'
 import { useEngineerStream } from './useEngineerStream'
 import { deltaClass, fmtDelta, fmtTime, gearLabel, levelClass } from './format'
@@ -7,6 +7,18 @@ import './display.css'
 /** Driving Display = a presentation mode of the SAME app. It computes nothing: every number comes from the shared engineer state. */
 export default function DrivingDisplay() {
   const st = useEngineerStream()
+  const [full, setFull] = useState(!!document.fullscreenElement)
+  const toggleFull = () => { try { document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen() } catch { /* not supported */ } }
+  useEffect(() => {      // F = fullscreen (also for kiosk-less browsers on a tablet/Raspberry); screen kept awake when the browser allows it
+    const onFs = () => setFull(!!document.fullscreenElement)
+    const onKey = (ev: KeyboardEvent) => { if ((ev.key === 'f' || ev.key === 'F') && !ev.ctrlKey && !ev.metaKey && !ev.altKey) toggleFull() }
+    let lock: any = null
+    const wake = () => { try { (navigator as any).wakeLock?.request('screen').then((l: any) => { lock = l }).catch(() => {}) } catch { /* optional */ } }
+    wake()
+    const onVis = () => { if (document.visibilityState === 'visible') wake() }
+    document.addEventListener('fullscreenchange', onFs); window.addEventListener('keydown', onKey); document.addEventListener('visibilitychange', onVis)
+    return () => { document.removeEventListener('fullscreenchange', onFs); window.removeEventListener('keydown', onKey); document.removeEventListener('visibilitychange', onVis); try { lock?.release() } catch { /* ignore */ } }
+  }, [])
   const [sel, setSel] = useState<string | null>(null)
   const e = st.engineer, inp = e?.inputs, d = e?.delta, c = e?.corner, sug = e?.suggestion
   const offline = !st.connected || st.stale
@@ -24,6 +36,7 @@ export default function DrivingDisplay() {
         <span className="d-mut">{e?.session?.track || '–'} · {e?.session?.vehicle || '–'}</span>
         <span className="d-chip" data-testid="display-mode" title={e?.session?.mode?.reason}>{e?.session?.mode?.label || '–'}</span>
         <span className="d-chip" data-testid="display-ref">rif. {e?.reference?.reliability?.level ?? '–'} · {e?.reference?.laps ?? 0} giri</span>
+        <button className="d-link d-fs" data-testid="display-fullscreen" onClick={toggleFull} title="Tutto schermo (tasto F)">{full ? 'esci da tutto schermo' : 'tutto schermo'}</button>
         <a className="d-link" href="/app/">dashboard</a>
       </header>
       {offline && <div className="d-offline" data-testid="display-offline" role="alert">{st.everConnected ? 'Nessun dato dal PC: valori in pausa (ultimo stato mostrato attenuato)' : 'Connessione al PC in corso…'}</div>}

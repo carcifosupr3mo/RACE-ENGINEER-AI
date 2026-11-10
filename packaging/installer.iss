@@ -25,6 +25,7 @@ Source: "..\scripts\windows\*.ps1"; DestDir: "{app}"; Flags: ignoreversion
 [Icons]
 Name: "{group}\Race Engineer AI"; Filename: "{app}\RaceEngineerAI.exe"
 Name: "{group}\Verifica LMU reale"; Filename: "{app}\VERIFICA_LMU.bat"
+Name: "{group}\Avvia con Driving Display"; Filename: "{app}\AVVIA_CON_DISPLAY.bat"
 Name: "{autodesktop}\Race Engineer AI"; Filename: "{app}\RaceEngineerAI.exe"; Tasks: desktopicon
 [Tasks]
 Name: desktopicon; Description: "Icona sul desktop"; Flags: unchecked

@@ -8,7 +8,7 @@
 - API: `/api/engineer/{state,map,events,reference,status}`, `/api/sessions/{id}/driving`, `/api/display/info`, `/driving-display`; il WebSocket `/ws/live` porta `engineer` + `events`.
 - **Driving Display** (`/driving-display`, stesso bundle, chunk separato ~13 kB senza Plotly): mappa interattiva dai dati di posizione reali, delta, velocità, marcia, giri, pedali, curva attuale/prossima, un suggerimento, allarmi, riconnessione automatica e stato offline; dashboard: blocco «Ingegnere di pista» nella Live, sezione «Driving Display», tabella di analisi di guida nel Lap Analyzer.
 - Shell desktop: voce di menu «Apri Driving Display (secondo monitor)», `Ctrl+D`, `--display`, `--lan` (opt-in, token) e «Driving Display in rete». CLI: `serve --lan` stampa l'URL del display; `--synthetic-speed` per test/demo.
-- Test: +25 pytest (182 totali), +4 vitest, e2e Playwright del display, smoke 28 controlli (7 nuovi). Nessuna verifica con LMU reale.
+- Test: +25 pytest (184 totali), +4 vitest, e2e Playwright del display, smoke 29 controlli (7 nuovi). Nessuna verifica con LMU reale.
 ## 0.4.1 (non rilasciata)
 - Procedura Windows guidata `PROCEDURA_VERIFICA.ps1`: preflight, registrazione >= 60 s con marcature HUD, report DuckDB/setup, riepilogo, controllo integrita' originali e report salvati. Test PowerShell in CI.
 - Nuovi comandi `preflight`, `hud-compare`, `verification-summary`; commit registrato in `build_info.json`.

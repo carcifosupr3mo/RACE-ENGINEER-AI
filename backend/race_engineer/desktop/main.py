@@ -88,6 +88,7 @@ def run(argv=None) -> int:
     ap.add_argument("--smoke", action="store_true", help="headless self-test: load the UI, check, exit")
     ap.add_argument("--start-minimized", action="store_true")
     ap.add_argument("--lan", action="store_true", help="expose the Driving Display on the local network (token required; off by default)")
+    ap.add_argument("--port", type=int, default=0, help="fixed port (default: a free one); needed by VERIFICA_DISPLAY.bat / live-check")
     ap.add_argument("--display", action="store_true", help="open the Driving Display on the second monitor at start")
     args = ap.parse_args(argv)
     if args.smoke:
@@ -133,7 +134,7 @@ def run(argv=None) -> int:
     icon = QIcon(pm)
 
     try:
-        backend = Backend(args.synthetic, lan=args.lan)
+        backend = Backend(args.synthetic, port=args.port, lan=args.lan)
     except Exception as e:
         log.exception("backend failed to start")
         if not args.smoke:
