@@ -6,8 +6,15 @@ Ingegnere di pista virtuale per **Le Mans Ultimate (LMU)**: acquisisce la teleme
 **Stato: Fasi 0-7 implementate (5 parziale), 8-9 parziali; tutto verificato solo con dati SINTETICI. L'acquisizione da LMU reale e l'analisi su telemetria LMU reale NON sono ancora verificate.**
 Vedi [ROADMAP.md](ROADMAP.md) e [docs/LMU-INTEGRATION.md](docs/LMU-INTEGRATION.md).
 
+## ⬇️ Download per Windows (pronto all'uso)
+
+**[Scarica RaceEngineerAI-win32.zip (portatile, 310 MB)](https://github.com/carcifosupr3mo/RACE-ENGINEER-AI/releases/download/v0.6.2-rc1/RaceEngineerAI-win32.zip)** — estrai, poi doppio clic su `AVVIA_CON_DISPLAY.bat`.
+Alternativa: [installer](https://github.com/carcifosupr3mo/RACE-ENGINEER-AI/releases/download/v0.6.2-rc1/RaceEngineerAI-Setup-0.1.0.exe) · [tutte le release](https://github.com/carcifosupr3mo/RACE-ENGINEER-AI/releases) · hash in `SHA256SUMS.txt` della release.
+Build testata in CI su Windows con dati sintetici, **non ancora verificata con LMU reale**. Non firmata: SmartScreen può avvisare.
+(Il pulsante verde *Code → Download ZIP* scarica solo i sorgenti, senza exe.)
+
 ## Avvio rapido su Windows (versione portatile dalla CI — consigliato per il test con LMU)
-1. Scarica l'artefatto `RaceEngineerAI-windows` dalla pagina della run CI (sezione *Artifacts*) ed estrailo: contiene `RaceEngineerAI-Setup-<ver>.exe` e `RaceEngineerAI-win32.zip`.
+1. Scarica i file dalla [release](https://github.com/carcifosupr3mo/RACE-ENGINEER-AI/releases) (oppure l'artefatto `RaceEngineerAI-windows` di una run CI): `RaceEngineerAI-Setup-<ver>.exe`, `RaceEngineerAI-win32.zip`, `SHA256SUMS.txt`.
 2. Verifica gli hash **prima** di aprire i file (devono coincidere con `SHA256SUMS.txt` e con [docs/VALIDATION.md](docs/VALIDATION.md)):
 ```powershell
 Get-FileHash .\RaceEngineerAI-win32.zip -Algorithm SHA256
