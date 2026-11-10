@@ -46,7 +46,8 @@ class Backend:
         app = create_app(self.engine, self.catalog, lan_enabled=lan, install=None if synthetic else find_install())
         self.app, self.token = app, app.state.token
         # LAN mode is an explicit opt-in (off by default): bind all interfaces, every /api and /ws call then needs the token
-        self.server = uvicorn.Server(uvicorn.Config(app, host="0.0.0.0" if lan else "127.0.0.1", port=self.port, log_level="warning"))
+        self.server = uvicorn.Server(uvicorn.Config(app, host="0.0.0.0" if lan else "127.0.0.1", port=self.port, log_level="warning",
+                                                  log_config=None))   # windowed exe has no stdout/stderr: uvicorn's default colour formatter would crash ("Unable to configure formatter 'default'")
         self.thread = threading.Thread(target=self.server.run, daemon=True, name="uvicorn")
         self.thread.start()
         t0 = time.time()

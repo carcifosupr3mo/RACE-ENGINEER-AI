@@ -67,7 +67,7 @@ def cmd_serve(args) -> int:
     print(f"UI: http://127.0.0.1:{args.port}/   (synthetic={bool(args.synthetic)})")
     print(f"Driving Display (second monitor on this PC): http://127.0.0.1:{args.port}/driving-display" + (f"?token={app.state.token}" if args.lan else ""))
     try:
-        uvicorn.run(app, host=host, port=args.port, log_level="warning")
+        uvicorn.run(app, host=host, port=args.port, log_level="warning", log_config=None if sys.stderr is None or sys.stdout is None else uvicorn.config.LOGGING_CONFIG)
     finally:
         eng.stop()
     return 0
