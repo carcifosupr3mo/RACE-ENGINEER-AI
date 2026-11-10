@@ -144,3 +144,11 @@ I due hash sono stati ricalcolati sui file estratti e coincidono con `SHA256SUMS
   - `RaceEngineerAI-win32.zip`: `6d74ed7b6f9649b23394640ee7eba452ed564225b976be34968e2645b766e4b1`
 - Questi checksum valgono SOLO per la run 16 (`fbc6faa`); non riutilizzano quelli della run 14. Il commit documentale che li registra avvia un'ulteriore run, il cui esito non è verificato qui.
 - Verificato su Windows (CI): build, installer, smoke, procedura PowerShell. **NON verificato con LMU reale.**
+
+## Esito CI del commit `64f6ae1` (verifica unità/valori mancanti) — [run 18 `42811366899`](https://github.com/carcifosupr3mo/RACE-ENGINEER-AI/actions/runs/42811366899): **success** (5 job su 5)
+- Contesto: la run 17 (`193f0ce`, solo documentazione) era fallita in `display-e2e` per un test non deterministico (finestra del consiglio di 3 giri); da `64f6ae1` la CI usa lo scenario sintetico `persistent`. Correzione del codice: i buchi di telemetria (NaN) non sono più letti come gas/freno a zero.
+- Artefatto `RaceEngineerAI-windows` (id 13763812444, commit `64f6ae1f6ad8440511b7ec3f6bce43280851cc29`), hash ricalcolati sui file scaricati:
+  - zip dell'artefatto: `13ec5c0371f6aacde18edcaaeb064d467946058688403e0dcdf8e22b8454ade4` (= digest GitHub)
+  - `RaceEngineerAI-Setup-0.1.0.exe`: `abbd2ce138bf4e6c6f99b77f504c796a347d2f65d0e62dccabf94be9cf928a05`
+  - `RaceEngineerAI-win32.zip`: `364a005addad5bc22cacadbea157cde2743ef49d8cabecdadd001e754e9b369a`
+- Non riusano i checksum delle run 14/16. Il commit che li registra avvia una nuova run (esito non verificato qui). Verificato su Windows: solo CI. **NON verificato con LMU reale.**
