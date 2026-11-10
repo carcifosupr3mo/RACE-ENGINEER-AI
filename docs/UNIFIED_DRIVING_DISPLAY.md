@@ -140,7 +140,7 @@ riconnessione, sicurezza LAN), vitest (formattazione, back-off), Playwright sul 
 * La numerazione delle curve è **provvisoria** (P1, P2…) finché non si salva un profilo pista; il cambio dell'ancora può rinumerare le curve rilevate automaticamente.
 * Modalità endurance: euristica (≥ 60 min o ≥ 3 stint); la durata reale della gara non è letta dal gioco.
 * Il giro di riferimento è il più veloce **valido** del driver, non un giro «ideale» composto.
-* Secondo monitor (posizionamento a tutto schermo su Windows con più schermi), tray, Raspberry reale, Wi-Fi reale e firewall **non sono stati provati** su hardware: coperti solo dalla CI Windows (senza monitor secondario) e da Chromium headless su Linux.
+* CI verde sul commit `e9675dc` (run 12, 5 job su 5; vedi `docs/VALIDATION.md`). Secondo monitor (posizionamento a tutto schermo su Windows con più schermi), tray, Raspberry reale, Wi-Fi reale e firewall **non sono stati provati** su hardware: coperti solo dalla CI Windows (senza monitor secondario) e da Chromium headless su Linux.
 * L'interpretazione AI (`driving_analysis`) è provata solo con provider finti; nessuna richiesta reale NVIDIA/Groq.
 * Installer/exe non firmati (SmartScreen può avvisare).
 

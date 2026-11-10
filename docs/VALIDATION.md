@@ -102,3 +102,26 @@ Eseguito in locale (Linux, sandbox), tutto **sintetico**:
 I messaggi `nanobind: leaked ...` stampati da DuckDB alla chiusura dell'interprete sono benigni e preesistenti (non cambiano l'exit code; l'esito conta dal codice di uscita e dal conteggio dei test). Il test «dashboard e display simultanei» su due schermi fisici NON è eseguibile da qui: Playwright usa due pagine dello stesso browser.
 
 Nuovo in questa fase: `/api/engineer/checklist` e `race-engineer-cli live-check` (report sanitizzato in 11 passi, dati REALI/SINTETICI espliciti), `AVVIA_CON_DISPLAY.bat`, `VERIFICA_DISPLAY.bat`, opzione `--port` della shell desktop, pulsante/tasto F per il tutto schermo + wake lock opzionale. Procedura reale e regole firewall: `docs/UNIFIED_DRIVING_DISPLAY.md` §9-10.
+
+## Esito CI del commit `e9675dc` — [run 12 `42778340419`](https://github.com/carcifosupr3mo/RACE-ENGINEER-AI/actions/runs/42778340419), 2026-11-10: **success** (5 job su 5)
+Evidenza reale su runner GitHub, **SENZA LMU**, con dati sintetici. Verificato leggendo i job al completamento (non prima).
+
+| Job | Esito |
+|---|---|
+| `backend` (ubuntu) | success (`pytest tests`, 184 test) |
+| `frontend` (ubuntu) | success (`npm ci && npm run build && npm test`, 8 vitest) |
+| `display-e2e` (ubuntu) | success (Playwright su Chromium, backend sintetico accelerato; artefatto `display-screenshots`) |
+| `windows-procedure` | success (`Test-Procedura.ps1` su Windows PowerShell 5.1 e PowerShell 7) |
+| `windows-bundle` | success: build PyInstaller + smoke dell'exe congelato; `secret scan: CLEAN`; installer Inno Setup; installazione silenziosa + smoke della copia INSTALLATA (**29/29 passed**, incl. shell desktop Qt WebEngine); disinstallazione; upload; `Test-Procedura.ps1` contro l'exe congelato |
+
+Nota: dal log scaricato (ultime 400 righe) ho letto direttamente solo la riga `29/29 passed` della copia installata e `secret scan: CLEAN`; lo smoke dell'exe congelato è uno step dello stesso job risultato `success` (lo script esce con errore se un controllo fallisce), ma la sua riga non era nella porzione di log letta.
+
+**Artefatto Windows** — `RaceEngineerAI-windows` (id 13745637992, 580.471.079 B):
+<https://github.com/carcifosupr3mo/RACE-ENGINEER-AI/actions/runs/42778340419/artifacts/13745637992>
+- digest zip (GitHub) = SHA256 ricalcolato da me sul file scaricato: `c3c8ba8a6033961459e58e452827c70bad2dad072988e374f847c8fda630955c`
+- `RaceEngineerAI-Setup-0.1.0.exe` (272.940.721 B): `3bc261f124e6cddd4153ed344787313f216c0b755d29f9b574b797ffac595a1d`
+- `RaceEngineerAI-win32.zip` (309.915.958 B): `377835293db570ae44fe37f15f3b84e230d8df33f36397c8b2a78c52f5b845b8`
+
+I due hash sono stati ricalcolati sui file estratti e coincidono con `SHA256SUMS.txt` dell'artefatto e col log CI. Contenuto verificato: `build_info.json` → commit `e9675dcdda13abcc2d1ee7feb76f5fd4159da1bb`; `webdist` con `DrivingDisplay-*.js` (incl. tutto schermo); `AVVIA_CON_DISPLAY.bat`, `VERIFICA_DISPLAY.bat`, `VERIFICA_LMU.bat`, `PROCEDURA_VERIFICA.*`, `race-engineer-cli.exe`, `RaceEngineerAI.exe`. Build non riproducibili: ogni run ha hash diversi; vale il `SHA256SUMS.txt` dell'artefatto scaricato. Run 11 (`d5c13a8`) è anch'esso verde su 5 job. Un push solo-documentale genera un nuovo run e un nuovo artefatto con hash diversi.
+
+**Ancora NON verificato**: tutto ciò che richiede LMU reale (Shared Memory, offset, orientamento mappa, numerazione curve), secondo monitor fisico, Raspberry/tablet in LAN, firewall reale, provider AI reali, installazione su un PC pulito (exe non firmato, SmartScreen).
