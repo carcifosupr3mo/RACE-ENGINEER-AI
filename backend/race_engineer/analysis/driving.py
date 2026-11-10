@@ -26,13 +26,16 @@ PHASES = ("entry", "mid", "exit")
 # which finding types "explain" a phase loss (so the generic *_loss finding is not added on top of them)
 PHASE_OF = {"early_braking": "entry", "inefficient_late_braking": "entry", "braking_too_long": "entry",
             "abrupt_release": "mid", "insufficient_min_speed": "mid", "inefficient_line": "mid",
-            "delayed_acceleration": "exit", "entry_loss": "entry", "mid_loss": "mid", "exit_loss": "exit"}
+            "delayed_acceleration": "exit", "insufficient_trail_braking": "entry", "excess_trail_braking": "mid",
+            "aggressive_throttle": "exit", "gear_choice": "mid", "entry_loss": "entry", "mid_loss": "mid", "exit_loss": "exit"}
 LABELS_IT = {
     "early_braking": "Frenata anticipata", "inefficient_late_braking": "Frenata tardiva inefficiente",
     "braking_too_long": "Frenata troppo lunga", "abrupt_release": "Rilascio del freno brusco",
     "delayed_acceleration": "Accelerazione ritardata", "insufficient_min_speed": "Velocità minima insufficiente",
     "inefficient_line": "Traiettoria inefficiente", "entry_loss": "Perdita in ingresso", "mid_loss": "Perdita a centro curva",
     "exit_loss": "Perdita in uscita", "late_braking_gain": "Frenata tardiva efficace",
+    "insufficient_trail_braking": "Trail braking insufficiente", "excess_trail_braking": "Trail braking eccessivo",
+    "aggressive_throttle": "Accelerazione troppo brusca", "gear_choice": "Marcia diversa dal riferimento",
 }
 
 
@@ -47,6 +50,11 @@ class DrivingThresholds:
     abrupt_span_m: float = 6.0          # brake pressure falls from 80 % of the peak to the threshold in less than this
     abrupt_ratio: float = 0.5           # ... and in less than this fraction of the reference's span
     steer_ratio: float = 1.10
+    trail_min_m: float = 12.0           # the reference holds the brake while turning for at least this long
+    trail_ratio: float = 0.40           # lap trail length <= this fraction of the reference's -> insufficient
+    trail_excess_m: float = 15.0
+    ramp_min_m: float = 12.0            # reference throttle progression (10 % -> 90 %) at least this long
+    ramp_ratio: float = 0.50
     seg_loss_s: float = 0.03            # generic phase loss
     zone_loss_s: float = 0.02
     zone_gain_s: float = 0.02
@@ -64,14 +72,20 @@ class DrivingMetrics:
     release_span_m: float | None = None      # distance over which pressure drops from 80 % of peak to the threshold
     throttle_on_m: float | None = None       # first throttle >= 10 % after the minimum speed
     steer_abs_mean: float | None = None      # mean |steering| around the apex (line indicator)
+    trail_m: float | None = None             # distance where the brake is still applied (> threshold) while the wheel is turned
+    throttle_ramp_m: float | None = None     # distance from 10 % to 90 % throttle after the minimum speed (progression)
+    gear_apex: int | None = None             # gear engaged at the minimum speed
+    shifts: int | None = None                # gear changes between corner entry and exit
     seg_t: dict = field(default_factory=dict)     # phase -> duration (s)
     bounds_m: tuple = ()
 
     def to_json(self) -> dict:
         d = self.base.to_json()
-        for k in ("entry_speed_kmh", "brake_peak_m", "brake_ramp_m", "brake_length_m", "release_span_m", "throttle_on_m", "steer_abs_mean"):
+        for k in ("entry_speed_kmh", "brake_peak_m", "brake_ramp_m", "brake_length_m", "release_span_m", "throttle_on_m", "steer_abs_mean",
+                  "trail_m", "throttle_ramp_m"):
             v = getattr(self, k)
             d[k] = None if v is None or not np.isfinite(v) else round(float(v), 3)
+        d["gear_apex"], d["shifts"] = self.gear_apex, self.shifts
         d["segments_s"] = {k: (None if v is None or not np.isfinite(v) else round(float(v), 3)) for k, v in self.seg_t.items()}
         return d
 
@@ -108,6 +122,30 @@ def driving_metrics(lap: AlignedLap, c: Corner) -> DrivingMetrics:
         a, b = _ix(g, c.apex_m - 30), _ix(g, c.apex_m + 30)
         s = np.abs(st[a:b + 1])
         dm.steer_abs_mean = float(np.nanmean(s)) if np.isfinite(s).any() else None
+    if st is not None and base.brake_start_m is not None and base.brake_release_m is not None:
+        a, b = _ix(g, c.entry_m), _ix(g, c.exit_m)
+        sw = np.abs(np.nan_to_num(st[a:b + 1]))
+        if len(sw) and sw.max() > 0:
+            thr_s = max(0.05, 0.25 * float(sw.max()))
+            i_s, i_r = _ix(g, base.brake_start_m), _ix(g, base.brake_release_m)
+            seg_b, seg_s = np.nan_to_num(br[i_s:i_r + 1]), np.abs(np.nan_to_num(st[i_s:i_r + 1]))
+            step = float(g[1] - g[0]) if len(g) > 1 else 1.0
+            dm.trail_m = float(((seg_b > BRAKE_THR) & (seg_s > thr_s)).sum() * step)
+    if base.min_speed_m is not None:
+        k = _ix(g, base.min_speed_m)
+        hi = min(len(g), _ix(g, c.exit_m + 150) + 1)
+        tw = np.nan_to_num(th[k:hi])
+        lo10, hi90 = np.flatnonzero(tw >= 0.10), np.flatnonzero(tw >= 0.90)
+        if len(lo10) and len(hi90) and hi90[0] >= lo10[0]:
+            dm.throttle_ramp_m = float(g[k + int(hi90[0])] - g[k + int(lo10[0])])
+        gr = lap.ch.get("gear")
+        if gr is not None and np.isfinite(gr[k]):
+            dm.gear_apex = int(gr[k])
+    gr = lap.ch.get("gear")
+    if gr is not None:
+        w = gr[_ix(g, c.entry_m):_ix(g, c.exit_m) + 1]
+        w = w[np.isfinite(w)]
+        dm.shifts = int((np.diff(w) != 0).sum()) if len(w) > 1 else 0
     lo = max(0.0, c.entry_m - 120.0)
     b1 = max(lo, c.apex_m - 30.0)
     if b1 <= lo:
@@ -240,6 +278,30 @@ def analyse(lap: AlignedLap, ref: AlignedLap, corners: list[Corner], th: Driving
             if ratio >= th.steer_ratio and pedals_ok and ((ms_d is not None and ms_d <= -1.0) or (sd["mid"] is not None and sd["mid"] >= th.line_loss_s)):
                 add("inefficient_line", "mid", (ratio - 1.0) / (th.steer_ratio - 1.0),
                     {"lap_steer_mean": m.steer_abs_mean, "ref_steer_mean": r.steer_abs_mean, "ratio": ratio, "min_speed_diff_kmh": ms_d})
+        # ---- trail braking (only when the reference actually trails and this lap loses time on entry/centre)
+        names = {f.type for f in findings if f.corner == c.id}
+        if m.trail_m is not None and r.trail_m is not None:
+            em_loss = (sd["entry"] or 0.0) + (sd["mid"] or 0.0)
+            slow = (ms_d is not None and ms_d <= -th.min_speed_kmh) or em_loss >= th.seg_loss_s
+            if r.trail_m >= th.trail_min_m and m.trail_m <= th.trail_ratio * r.trail_m and slow \
+                    and not names & {"braking_too_long", "abrupt_release"}:
+                add("insufficient_trail_braking", "entry", (r.trail_m - m.trail_m) / th.trail_min_m,
+                    {"lap_trail_m": m.trail_m, "ref_trail_m": r.trail_m, "min_speed_diff_kmh": ms_d})
+            elif m.trail_m - r.trail_m >= th.trail_excess_m and m.trail_m >= 1.8 * max(r.trail_m, 1.0) \
+                    and ((sd["mid"] or 0.0) + (sd["exit"] or 0.0) >= th.seg_loss_s) and (rel_d is not None and rel_d >= th.release_later_m) \
+                    and not names & {"braking_too_long", "abrupt_release"}:
+                add("excess_trail_braking", "mid", (m.trail_m - r.trail_m) / th.trail_excess_m,
+                    {"lap_trail_m": m.trail_m, "ref_trail_m": r.trail_m, "release_diff_m": rel_d})
+        # ---- throttle progression: much faster than the reference AND the exit is slower (no claim about wheelspin: not measured)
+        if m.throttle_ramp_m is not None and r.throttle_ramp_m is not None and r.throttle_ramp_m >= th.ramp_min_m \
+                and m.throttle_ramp_m <= th.ramp_ratio * r.throttle_ramp_m and (sd["exit"] or 0.0) >= th.seg_loss_s \
+                and "delayed_acceleration" not in names:
+            add("aggressive_throttle", "exit", (r.throttle_ramp_m - m.throttle_ramp_m) / th.ramp_min_m,
+                {"lap_ramp_m": m.throttle_ramp_m, "ref_ramp_m": r.throttle_ramp_m, "exit_speed_diff_kmh": ex_d})
+        # ---- gear at the apex differs from the reference while the corner is slower
+        if m.gear_apex is not None and r.gear_apex is not None and m.gear_apex != r.gear_apex and r.gear_apex > 0 and m.gear_apex > 0 \
+                and ((ms_d is not None and ms_d <= -th.min_speed_kmh) or (sd["exit"] or 0.0) >= th.seg_loss_s):
+            add("gear_choice", "mid", 1.0, {"lap_gear": m.gear_apex, "ref_gear": r.gear_apex, "min_speed_diff_kmh": ms_d, "lap_shifts": m.shifts, "ref_shifts": r.shifts})
         # ---- generic phase losses not already explained
         have = {f.phase for f in findings if f.corner == c.id}
         for p in PHASES:

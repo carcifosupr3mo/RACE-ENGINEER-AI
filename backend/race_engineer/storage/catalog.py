@@ -55,6 +55,32 @@ MIGRATIONS: list[tuple[int, str]] = [
     ALTER TABLE setups ADD COLUMN sha256 TEXT;
     ALTER TABLE setups ADD COLUMN fmt TEXT;          -- json | svm | other
     """),
+    (5, """
+    CREATE TABLE coach_tips (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, created_at REAL NOT NULL, session_id TEXT,
+        track TEXT NOT NULL, vehicle TEXT NOT NULL DEFAULT '', synthetic INTEGER NOT NULL DEFAULT 0,
+        corner TEXT NOT NULL, type TEXT NOT NULL, key TEXT NOT NULL,          -- key = '<corner>.<type>'
+        lap_issued INTEGER, confidence TEXT, impact_before_s REAL, mag_before REAL,
+        instruction_json TEXT NOT NULL,
+        status TEXT NOT NULL,            -- nuovo | mostrato | applicato | da_rivalutare | non_verificabile
+        shown_at REAL, shown_lap INTEGER, evaluated_lap INTEGER,
+        outcome TEXT,                    -- seguito_migliorato | seguito_non_efficace | parziale | non_seguito | peggiorato | non_confrontabile | corretto
+        impact_after_s REAL, evaluations INTEGER NOT NULL DEFAULT 0, skipped INTEGER NOT NULL DEFAULT 0, closed_at REAL
+    );
+    CREATE INDEX idx_coach_tips ON coach_tips(track, vehicle, synthetic, key, status);
+    CREATE TABLE coach_habits (
+        track TEXT NOT NULL, vehicle TEXT NOT NULL DEFAULT '', synthetic INTEGER NOT NULL DEFAULT 0,
+        corner TEXT NOT NULL, type TEXT NOT NULL,
+        laps_seen INTEGER NOT NULL DEFAULT 0, total_impact_s REAL NOT NULL DEFAULT 0,
+        first_seen REAL, last_seen REAL, last_session_id TEXT, sessions INTEGER NOT NULL DEFAULT 0, fixed_at REAL,
+        PRIMARY KEY (track, vehicle, synthetic, corner, type)
+    );
+    CREATE TABLE coach_laps (
+        session_id TEXT NOT NULL, lap INTEGER NOT NULL, track TEXT NOT NULL, vehicle TEXT NOT NULL DEFAULT '', synthetic INTEGER NOT NULL DEFAULT 0,
+        created_at REAL NOT NULL, time_s REAL, delta_best_s REAL, findings INTEGER, review_json TEXT,
+        PRIMARY KEY (session_id, lap)
+    );
+    """),
 ]
 
 

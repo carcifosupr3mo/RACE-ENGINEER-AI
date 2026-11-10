@@ -29,9 +29,11 @@ from ..analysis.laps import SessionData, segment_laps
 from ..analysis.reference import PersonalReference
 from ..analysis.session_mode import classify
 from .suggestions import Arbiter, build_alerts, build_candidates
+from .coach import Coach, comparable, corners_meta, lap_conditions
 
 LIVE_COLS = ("session_time_s", "lap_number", "lap_dist_m", "speed_kmh", "throttle", "brake", "steering", "rpm", "gear", "in_pits",
-             "lap_invalidated", "last_lap_time_s", "fuel_l", "pos_x_m", "pos_z_m", "sector")
+             "lap_invalidated", "last_lap_time_s", "fuel_l", "pos_x_m", "pos_z_m", "sector",
+             "rain", "track_temp_c", "tyre_fl_wear", "tyre_fr_wear", "tyre_rl_wear", "tyre_rr_wear")      # last six = lap conditions (comparability)
 TAIL_SAMPLES = 25            # samples of the next lap kept to read the game's last-lap time and close the lap exactly like the offline analysis
 SCHEMA = 1
 AI_SYSTEM = ("Sei l'ingegnere di pista. Commenta in italiano, al massimo 3 righe, l'analisi dell'ultimo giro. "
@@ -56,6 +58,7 @@ class LiveEngineer:
         self.events: collections.deque = collections.deque(maxlen=200)
         self.seq = 0
         self.counters = {"samples": 0, "laps_closed": 0, "laps_analysed": 0, "ai_requests": 0, "ai_accepted": 0, "ai_rejected": 0}
+        self.coach = Coach(catalog, clock)
         self._reset_session(None)
         engine.on_sample.append(self.on_sample)
         engine.on_session_end.append(self._on_session_end)
@@ -91,6 +94,17 @@ class LiveEngineer:
         self._state: dict = {}
         self._map_cache: tuple | None = None
         self.last_session_t: float | None = None
+        self.lap_cond: dict[int, dict] = {}              # lap number -> conditions (comparability)
+        self.lap_times: list[float] = []                 # valid lap times of this session
+        self._prev_al: AlignedLap | None = None
+        self._prev_res: dict | None = None
+        self._prev_time: float | None = None
+        self.last_review: dict | None = None
+        self.review_at: float | None = None
+        self.reviews: dict[int, dict] = {}
+        self._cands_sig = None
+        self._instr_cache: dict = {}
+        self._shown_key: str | None = None
 
     def _event(self, kind: str, data: dict) -> None:
         self.seq += 1
@@ -155,6 +169,7 @@ class LiveEngineer:
         except Exception:
             pass
         self.ref = PersonalReference(ctx.track_name, ctx.vehicle_name, self.synthetic, store_dir=None if self.root is None else Path(self.root) / "references", profile=prof)
+        self.coach.bind(self.sid, ctx.track_name, ctx.vehicle_name, self.synthetic)
         self._event("session_started", {"session_id": self.sid, "track": ctx.track_name, "reference_laps": len(self.ref.laps)})
         if self.ref.laps:
             self._event("reference_loaded", {"version": self.ref.version, "laps": len(self.ref.laps)})
@@ -233,22 +248,41 @@ class LiveEngineer:
                 return
             rel = ref.reliability()
             anchor = ref.anchor
+            anchor_time_before = anchor.time_s if anchor is not None else None
             res = None
+            cond = lap_conditions(cols)
+            self.lap_cond[lap.number] = cond
+            if len(self.lap_cond) > 80:
+                self.lap_cond.pop(next(iter(self.lap_cond)))
+            anchor_cond = self.lap_cond.get(anchor.number) if (anchor is not None and anchor.session_id == sid) else None
+            comp = comparable(cond, anchor_cond)
             if anchor is not None and ref.corners():
                 res = analyse(al, anchor.aligned, ref.corners(), reliability=max(0.15, rel["score"]))
                 res["ref_session_id"] = anchor.session_id
                 res["ref_time_s"] = anchor.time_s
                 res["lap_time_s"] = float(lap.time_s)
+                res["comparable"], res["conditions"] = comp["ok"], cond
                 self.last_analysis = res
-                self.history.append(res)
+                if comp["ok"]:
+                    self.history.append(res)         # laps in clearly different conditions neither create nor judge advice
                 self.by_lap[res['lap']] = res
                 if len(self.by_lap) > 60:
                     self.by_lap.pop(next(iter(self.by_lap)))
                 self.counters["laps_analysed"] += 1
+            self.coach.lap_now = lap.number
+            evals = self.coach.lap_closed(res, lap=lap.number, comp=comp)
+            prev_res = self._prev_res
+            if res is not None and self._prev_al is not None and (prev_res is None or prev_res.get("ref_lap") != res["ref_lap"]
+                                                                   or prev_res.get("ref_session_id") != res.get("ref_session_id")):
+                try:
+                    prev_res = analyse(self._prev_al, anchor.aligned, ref.corners(), reliability=max(0.15, rel["score"]))   # same function, same reference
+                except Exception:
+                    prev_res = None
             add = ref.add(al, float(lap.time_s), sid)
             if add.get("new_anchor"):
                 self.history.clear()                 # earlier findings were measured against a reference that no longer exists
                 self.candidates = []
+                self._cands_sig = None
             if self.best_lap_s is None or lap.time_s < self.best_lap_s:
                 self.best_lap_s = float(lap.time_s)
             info.update({"is_reference_best": bool(add.get("new_anchor")), "delta_to_ref_s": None if res is None else res["total_delta_s"],
@@ -259,8 +293,55 @@ class LiveEngineer:
                                                   "laps": len(ref.laps), "reliability": ref.reliability()["level"]})
             if res is not None:
                 self._event("analysis_ready", {"lap": lap.number, "ref_lap": res["ref_lap"], "findings": len(res["findings"]), "total_delta_s": res["total_delta_s"]})
-                self.candidates = build_candidates(list(self.history), self._mode)
+                self._rebuild_candidates()
                 self._submit_ai(res)
+            self._make_review(res, lap, comp, evals, prev_res, anchor_time_before)
+            self._prev_al, self._prev_res, self._prev_time = al, res, float(lap.time_s)
+            self.lap_times.append(float(lap.time_s))
+
+    def _review_view(self, now: float) -> dict | None:
+        """Compact view of the last end-of-lap review for the shared state (the full review: /api/coach/review)."""
+        rv = self.last_review
+        if rv is None or self.review_at is None:
+            return None
+        age = now - self.review_at
+        return {"lap": rv["lap"], "summary": rv["summary"], "time_s": rv["time_s"], "delta_best_s": rv["delta_best_s"], "delta_prev_s": rv["delta_prev_s"],
+                "improved": [r["label"] for r in rv["improved"][:3]], "worsened": [r["label"] for r in rv["worsened"][:3]],
+                "comparable": rv["comparable"]["ok"], "next_focus": rv["next_focus"], "age_s": round(age, 1),
+                "visible": age < float(self.coach.prefs()["show_review_s"]), "synthetic": rv.get("synthetic", False)}
+
+    def _rebuild_candidates(self) -> None:
+        """Candidates only change when the mode or the analysed laps change; the coach re-ranks them with the driver's memory."""
+        sig = (self._mode["mode"], len(self.history), self.history[-1]["lap"] if self.history else None)
+        if sig == self._cands_sig:
+            return
+        self._cands_sig = sig
+        self._instr_cache = {}
+        self.candidates = self.coach.decorate(build_candidates(list(self.history), self._mode))
+        if self.ref is not None and self.ref.anchor is not None and self.candidates:
+            self.coach.sync_tips(self.candidates, self._mode, self.ref.reliability(), corners_meta(self.ref))
+
+    def _make_review(self, res, lap, comp, evals, prev_res, best_before) -> None:
+        corners = corners_meta(self.ref)
+        focus = None
+        if self.candidates:
+            c0 = self.candidates[0]
+            i0 = self._instr_cache.get(c0.key) or self.coach.instruction(c0.to_json(), corner=corners.get(c0.corner), mode=self._mode,
+                                                                           rel=self.ref.reliability() if self.ref else {}, reassess=getattr(c0, "reassess", False))
+            focus = {"corner": c0.corner, "corner_label": i0["corner_label"], "headline": i0["headline"], "key": c0.key}
+        best = best_before if best_before is not None else None
+        rv = self.coach.review(res=res, lap=lap.number, time_s=float(lap.time_s), best_s=best, prev_res=prev_res, prev_time=self._prev_time,
+                               session_times=list(self.lap_times) + [float(lap.time_s)], comp=comp, evals=evals, corners=corners, next_focus=focus, mode=self._mode)
+        rv["synthetic"] = self.synthetic
+        self.last_review, self.review_at = rv, self.clock()
+        self.reviews[lap.number] = rv
+        if len(self.reviews) > 60:
+            self.reviews.pop(next(iter(self.reviews)))
+        try:
+            self.coach.save_review(rv, 0 if res is None else len(res["findings"]))
+        except Exception as e:
+            self.errors.append(f"coach memory: {type(e).__name__}: {e}")
+        self._event("lap_review", {"lap": lap.number, "summary": rv["summary"], "comparable": comp["ok"]})
 
     # ------------------------------------------------------------------ AI interpretation (optional, aggregates only, never per sample)
     def _submit_ai(self, res: dict) -> None:
@@ -346,7 +427,7 @@ class LiveEngineer:
             self._snap = snap
             self._alerts = build_alerts(v, snap)
             self._mode = classify(ctx.session_type, t, (snap or {}).get("stint", 1))
-            self.candidates = build_candidates(list(self.history), self._mode)
+            self._rebuild_candidates()
         # trail: real positions every >= 3 m
         x, z = v.get("pos_x_m"), v.get("pos_z_m")
         if x is not None and z is not None and (not self.trail or abs(s - self.trail[-1][2]) >= 3.0) and len(self.trail) < 6000:
@@ -375,6 +456,20 @@ class LiveEngineer:
         crit = [a for a in self._alerts if a["level"] == "critical"]
         prev = self._state.get("suggestion", {}).get("main") if self._state else None
         main_j = main.to_json() if main else None
+        if main_j:
+            early = L > 0 and s < 0.25 * L
+            if self._shown_key != main_j["id"]:
+                self._shown_key = main_j["id"]
+                self._instr_cache.pop(main_j["id"], None)
+                self.coach.displayed(main_j["id"], (self.cur_lap or 0) if early else (self.cur_lap or 0) + 1)
+            inst = self._instr_cache.get(main_j["id"])
+            if inst is None:
+                inst = self._instr_cache[main_j["id"]] = self.coach.instruction(
+                    main_j, corner=corners_meta(ref).get(main_j["corner"]), mode=self._mode,
+                    rel=ref.reliability() if ref else {}, reassess=getattr(main, "reassess", False))
+            main_j["instruction"] = inst
+        elif self._shown_key is not None:
+            self._shown_key = None
         if (main_j and main_j["id"]) != (prev and prev["id"]):
             self._event("suggestion_changed", {"id": main_j and main_j["id"], "text": main_j and main_j["text"]})
         rel = ref.reliability() if ref else {"level": "nessuno", "learning": True, "n_laps": 0, "score": 0.0, "reasons": []}
@@ -410,6 +505,7 @@ class LiveEngineer:
                 "gains": [{k: g[k] for k in ("corner", "label", "time_gain_s")} for g in self.last_analysis["gains"][:3]]},
             "resources": None if not snap else {k: snap.get(k) for k in ("fuel_l", "fuel_per_lap_l", "laps_of_fuel", "stint", "stint_laps", "tyre_max_c_this_lap",
                                                                           "wear_min_this_lap", "avg_last_laps_s")},
+            "review": self._review_view(now), "coach": {"prefs": self.coach.prefs(), "lap_comparable": None if not self.last_analysis else self.last_analysis.get("comparable")},
             "ai_note": self.ai_note, "map_version": self.map_version(),
             "provenance": "synthetic" if self.synthetic else "lmu_shm", "synthetic": self.synthetic,
             "seq": self.seq,

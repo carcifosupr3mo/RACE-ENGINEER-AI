@@ -378,6 +378,42 @@ def create_app(engine: AcquisitionEngine, catalog: Catalog, *, lan_enabled: bool
     def engineer_status():
         return live.status()
 
+    # ---- coaching memory / end-of-lap review (same engine, same catalog database)
+    def _coach_scope():
+        return live.coach.track, live.coach.vehicle, live.coach.synthetic
+
+    @app.get("/api/coach/review")
+    def coach_review(lap: int | None = None):
+        with live._lock:
+            rv = live.reviews.get(lap) if lap is not None else live.last_review
+        if rv is None:
+            raise HTTPException(404, "nessuna revisione di giro disponibile")
+        return clean(rv)
+
+    @app.get("/api/coach/summary")
+    def coach_summary():
+        with live._lock:
+            return clean(live.coach.mem.summary(*_coach_scope()))
+
+    @app.get("/api/coach/tips")
+    def coach_tips(limit: int = 30):
+        with live._lock:
+            return clean({"tips": live.coach.mem.recent_tips(*_coach_scope(), limit=max(1, min(limit, 200)))})
+
+    @app.get("/api/coach/progress")
+    def coach_progress():
+        with live._lock:
+            return clean({"laps": live.coach.mem.progress(*_coach_scope())})
+
+    @app.get("/api/coach/prefs")
+    def coach_prefs_get():
+        return live.coach.prefs()
+
+    @app.put("/api/coach/prefs")
+    def coach_prefs_put(body: dict):
+        with live._lock:
+            return live.coach.mem.set_prefs(body)
+
     @app.get("/api/engineer/checklist")
     def engineer_checklist(format: str = "json"):
         """Live-test checklist built from the SHARED state (same snapshot/map the dashboard and display use). Sanitised: no driver name, paths or keys."""

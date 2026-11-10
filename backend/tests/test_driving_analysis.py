@@ -175,3 +175,86 @@ def test_session_adaptation_changes_priorities_not_the_engine():
     assert e["weights"]["resources"] > r["weights"]["resources"]
     assert classify("race", 100, 3)["mode"] == "endurance" and classify("practice")["mode"] == "practice" and classify("test")["mode"] == "test"
     assert classify(None)["mode"] == "generic" and classify("warmup")["mode"] == "practice"
+
+
+# ---------------------------------------------------------------- trail braking / throttle progression / gear (SYNTHETIC laps edited by a known amount)
+def _penalised(lap, c, seconds=0.25, kmh=0.0):
+    import copy
+    bad = copy.deepcopy(lap)
+    g = bad.grid
+    bad.t = bad.t + np.clip((g - (c.apex_m - 40)) / 80.0, 0, 1) * seconds
+    if kmh:
+        bad.ch["speed_kmh"] = bad.ch["speed_kmh"] - np.where((g > c.apex_m - 40) & (g < c.exit_m), kmh, 0.0)
+    return bad
+
+
+def test_insufficient_trail_braking_is_found_when_the_corner_is_slower(tpf):
+    al = laps_for(tpf, "constant")
+    ref, lap = al[0], al[1]
+    cs = detect_corners(ref)
+    c = cs[1]
+    bad = _penalised(lap, c, 0.25, 6.0)
+    br = bad.ch["brake"].copy()
+    i0 = int(np.flatnonzero(br[int(c.entry_m) - 10:int(c.apex_m)] > 0.1)[0]) + int(c.entry_m) - 10
+    br[i0 + 20:int(c.apex_m) + 1] = 0.0                      # releases the brake 20 m after applying it: no trailing into the corner
+    bad.ch["brake"] = br
+    res = analyse(bad, ref, cs)
+    f = next(f for f in res["findings"] if f["type"] == "insufficient_trail_braking" and f["corner"] == c.id)
+    assert f["phase"] == "entry" and f["evidence"]["lap_trail_m"] < 0.4 * f["evidence"]["ref_trail_m"]
+    assert f["provenance"] == "computed" and f["confidence"]["reasons"]
+    assert dm_trail(ref, c) >= 12.0
+
+
+def dm_trail(lap, c):
+    return driving_metrics(lap, c).trail_m
+
+
+def test_trail_findings_do_not_contradict_release_findings(tpf):
+    """A corner already flagged 'braking too long' must not also be told to trail longer."""
+    al = laps_for(tpf, "constant")
+    ref, lap = al[0], al[1]
+    cs = detect_corners(ref)
+    c = cs[1]
+    bad = _penalised(lap, c, 0.3, 5.0)
+    br = bad.ch["brake"].copy()
+    br[int(c.apex_m):int(c.apex_m) + 40] = np.maximum(br[int(c.apex_m):int(c.apex_m) + 40], 0.5)   # holds the brake well past the reference release
+    bad.ch["brake"] = br
+    res = analyse(bad, ref, cs)
+    kinds = {f["type"] for f in res["findings"] if f["corner"] == c.id}
+    assert not ({"braking_too_long", "abrupt_release"} & kinds and "insufficient_trail_braking" in kinds)
+
+
+def test_aggressive_throttle_needs_a_progressive_reference_and_a_slower_exit(tpf):
+    import copy
+    al = laps_for(tpf, "constant")
+    cs = detect_corners(al[0])
+    c = cs[1]
+    ref = copy.deepcopy(al[0])
+    m0 = driving_metrics(al[0], c)
+    k = int(m0.base.min_speed_m)
+    th = ref.ch["throttle"].copy()
+    th[k:k + 60] = np.clip(np.linspace(0.1, 1.0, 60), 0, 1)           # a reference that opens the throttle progressively over ~60 m
+    th[k + 60:int(c.exit_m) + 60] = 1.0
+    ref.ch["throttle"] = th
+    assert driving_metrics(ref, c).throttle_ramp_m >= 12.0
+    lap = _penalised(al[1], c, 0.4, 4.0)                                # the lap snaps the throttle open (step) and exits slower
+    res = analyse(lap, ref, cs)
+    assert any(f["type"] == "aggressive_throttle" and f["corner"] == c.id and f["phase"] == "exit" for f in res["findings"])
+    clean = analyse(al[1], al[0], cs)                                   # on the unmodified synthetic laps the ramp is 0 m: no invented finding
+    assert not any(f["type"] == "aggressive_throttle" for f in clean["findings"])
+
+
+def test_gear_choice_is_reported_only_with_a_measured_loss(tpf):
+    al = laps_for(tpf, "constant")
+    ref = al[0]
+    cs = detect_corners(ref)
+    c = cs[1]
+    k = int(driving_metrics(ref, c).base.min_speed_m)
+    lap = _penalised(al[1], c, 0.0, 0.0)
+    gr = lap.ch["gear"].copy()
+    gr[k - 5:k + 6] = gr[k] + 1
+    lap.ch["gear"] = gr
+    assert not any(f["type"] == "gear_choice" for f in analyse(lap, ref, cs)["findings"])       # different gear, but no time/speed lost: silent
+    slow = _penalised(lap, c, 0.2, 5.0)
+    f = next(f for f in analyse(slow, ref, cs)["findings"] if f["type"] == "gear_choice" and f["corner"] == c.id)
+    assert f["evidence"]["lap_gear"] == f["evidence"]["ref_gear"] + 1

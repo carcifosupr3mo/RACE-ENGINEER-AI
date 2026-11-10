@@ -9,6 +9,7 @@ from __future__ import annotations
 GROUP_OF = {
     "early_braking": "pace", "inefficient_late_braking": "pace", "braking_too_long": "pace", "abrupt_release": "pace",
     "delayed_acceleration": "pace", "insufficient_min_speed": "pace", "inefficient_line": "pace",
+    "insufficient_trail_braking": "pace", "excess_trail_braking": "pace", "aggressive_throttle": "pace", "gear_choice": "pace",
     "entry_loss": "pace", "mid_loss": "pace", "exit_loss": "pace",
     "inconsistent": "consistency", "fuel": "resources", "tyres": "resources",
 }
