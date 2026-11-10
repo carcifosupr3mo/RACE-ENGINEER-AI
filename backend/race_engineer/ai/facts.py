@@ -9,6 +9,8 @@ from ..analysis import driver as drv
 from ..analysis.align import align_lap
 from ..analysis.compare import compare, consistency, corner_metrics
 from ..analysis.corners import apply_profile, detect_corners
+from ..analysis.driving import analyse as driving_analyse
+from ..analysis.session_mode import classify as classify_session
 from ..analysis.laps import load_session, segment_laps, summarize
 from ..analysis.tyrefuel import fuel_report, tyre_report
 from ..storage.catalog import Catalog
@@ -72,6 +74,8 @@ def build_facts(catalog: Catalog, session_id: str) -> tuple[list[Fact], dict]:
         for i in range(3):
             best_lap = min(st, key=lambda n: st[n][i])
             F.append(Fact(f"SEC{i + 1}", "sector", f"Miglior settore {i + 1}: {st[best_lap][i]:.3f} s (giro {best_lap}).", {"sector": i + 1, "time_s": st[best_lap][i], "lap": best_lap}, "computed"))
+    mode = classify_session(row["session_type"])
+    F.append(Fact("MODE", "mode", f"Modalità di analisi: {mode['label']} (priorità: {', '.join(mode['focus'])}).", {"mode": mode["mode"]}, "computed"))
     ok = [l for l in laps if l.valid_for_analysis and l.time_s]
     if len(ok) >= 4:
         sl = float(np.polyfit([l.number for l in ok], [l.time_s for l in ok], 1)[0])
@@ -104,6 +108,18 @@ def build_facts(catalog: Catalog, session_id: str) -> tuple[list[Fact], dict]:
                     F.append(Fact(f"F{n}.{f['corner']}.{f['type']}", "finding",
                                   f"Giro {n}, curva {f['corner']}: {f['type']} ({ev})" + (f"; variazione del tempo di zona {imp:+.3f} s." if imp is not None else "."),
                                   {"lap": n, "corner": f["corner"], "type": f["type"], "time_impact_s": imp, **f["evidence"]}, "computed"))
+                dres = driving_analyse(a, ref, cs, reliability=min(1.0, 0.25 * (len(ok) - 1)))
+                for f in dres["findings"]:
+                    imp = f["time_impact_s"]
+                    ev = ", ".join(f"{k}={v}" for k, v in f["evidence"].items())
+                    F.append(Fact(f"DRV{n}.{f['corner']}.{f['type']}", "driving_finding",
+                                  f"Giro {n}, curva {f['corner']}: {f['label']} ({ev})" + (f"; {imp:+.3f} s in fase {f['phase']}" if imp is not None else "")
+                                  + f"; affidabilità {f['confidence']['level']}.",
+                                  {"lap": n, "corner": f["corner"], "type": f["type"], "phase": f["phase"], "time_impact_s": imp,
+                                   "confidence": f["confidence"]["level"], **f["evidence"]}, "computed"))
+                for g in dres["gains"]:
+                    F.append(Fact(f"DRVG{n}.{g['corner']}", "driving_gain", f"Giro {n}, curva {g['corner']}: {g['label']}, {g['time_gain_s']:.3f} s guadagnati sull'intera curva.",
+                                  {"lap": n, "corner": g["corner"], "time_gain_s": g["time_gain_s"]}, "computed"))
                 for r in res["corners"]:
                     z = r["lap"]["zone_time_delta_s"]
                     if z is not None:

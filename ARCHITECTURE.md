@@ -47,3 +47,10 @@ Bind su 127.0.0.1; controllo `Host` (anti DNS-rebinding) e `Origin` WS; `--lan` 
 
 ## Validazione, AI gratuita, endurance (0.4.0)
 `lmu/verify.py`+`lmu/header_layout.py` (verifica reale), `importers/diagnostic_report.py`, `setup/inspect.py`, `ai/providers/*` (NVIDIA→Groq→locale), `endurance/*` (rilevatore, memoria, pipeline, servizio agganciato al motore tramite listener che non possono fermare l'acquisizione). Dettagli: docs/AI-PROVIDERS.md, docs/VALIDATION.md.
+
+
+## Sistema unificato con doppio display (0.5.0)
+Un solo flusso: `AcquisitionEngine` → `LiveEngineer` (`live/engineer.py`: buffer giro → `segment_laps` → `align_lap` → `driving.analyse` vs `PersonalReference` → arbitro/allarmi → eventi) →
+`snapshot()` unico, consumato da `/ws/live` (campo `engineer`), `/api/engineer/*`, dashboard e **Driving Display** (`/driving-display`, stesso bundle React). Post-sessione `/api/sessions/{id}/driving` e
+`ai/facts` usano la stessa `driving.analyse`. Moduli nuovi: `analysis/driving.py`, `analysis/reference.py`, `analysis/session_mode.py`, `live/{engineer,suggestions}.py`.
+Vedi `docs/UNIFIED_DRIVING_DISPLAY.md` (piano, architettura, API, procedura secondo monitor/LAN, limiti).

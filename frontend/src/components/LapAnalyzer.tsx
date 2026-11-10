@@ -16,6 +16,7 @@ export default function LapAnalyzer({ sessionId, onPick }: { sessionId: string |
   const [lap, setLap] = useState<number | null>(null)
   const [ref, setRef] = useState<number | null>(null)
   const [cmp, setCmp] = useState<any>(null)
+  const [driving, setDriving] = useState<any>(null)
   const [trace, setTrace] = useState<any>(null)
   const [corners, setCorners] = useState<any>(null)
   const [err, setErr] = useState('')
@@ -39,7 +40,8 @@ export default function LapAnalyzer({ sessionId, onPick }: { sessionId: string |
       api(`/api/sessions/${sessionId}/compare?lap=${lap}&ref=${ref}`),
       api(`/api/sessions/${sessionId}/trace?laps=${lap},${ref}&step=2`),
       api(`/api/sessions/${sessionId}/corners?ref=${ref}`),
-    ]).then(([c, t, k]) => { setCmp(c); setTrace(t); setCorners(k) }).catch(e => { setErr(e.message); setCmp(null); setTrace(null) })
+      api(`/api/sessions/${sessionId}/driving?lap=${lap}&ref=${ref}`).catch(() => null),
+    ]).then(([c, t, k, d]) => { setCmp(c); setTrace(t); setCorners(k); setDriving(d) }).catch(e => { setErr(e.message); setCmp(null); setTrace(null) })
   }, [sessionId, lap, ref])
 
   return (
@@ -56,7 +58,7 @@ export default function LapAnalyzer({ sessionId, onPick }: { sessionId: string |
       </div>
       {err && <p className="bad" data-testid="error">{err}</p>}
       {laps && <LapTable laps={laps} />}
-      {cmp && trace && corners && trace.laps[cmp.lap] && trace.laps[cmp.ref_lap] && <Analysis cmp={cmp} trace={trace} corners={corners} lap={cmp.lap} ref_={cmp.ref_lap} cursor={cursor} setCursor={setCursor} />}
+      {cmp && trace && corners && trace.laps[cmp.lap] && trace.laps[cmp.ref_lap] && <Analysis cmp={cmp} trace={trace} corners={corners} driving={driving} lap={cmp.lap} ref_={cmp.ref_lap} cursor={cursor} setCursor={setCursor} />}
     </section>)
 }
 
@@ -71,7 +73,7 @@ function LapTable({ laps }: { laps: any }) {
     </div>)
 }
 
-function Analysis({ cmp, trace, corners, lap, ref_, cursor, setCursor }: any) {
+function Analysis({ cmp, trace, corners, driving, lap, ref_, cursor, setCursor }: any) {
   const grid: number[] = trace.distance_m
   const L = trace.laps[lap], R = trace.laps[ref_]
   const divs = useRef<Record<string, HTMLDivElement | null>>({})
@@ -150,6 +152,25 @@ function Analysis({ cmp, trace, corners, lap, ref_, cursor, setCursor }: any) {
         <table data-testid="findings"><thead><tr><th>Curva</th><th>Osservazione</th><th>Dati misurati</th><th>Variazione tempo zona</th></tr></thead>
           <tbody>{cmp.findings.map((f: any, i: number) => <tr key={i}><td>{f.corner}</td><td>{findingLabel(f.type)}</td><td className="mono">{findingText(f)}</td>
             <td className="mono">{f.time_impact_s != null ? (f.time_impact_s > 0 ? '+' : '') + f.time_impact_s.toFixed(3) + ' s' : '–'}</td></tr>)}</tbody></table>}
+      {driving && <DrivingTable d={driving} />}
       <p className="mut">Le differenze sono misure rispetto al giro di riferimento; la variazione di tempo è attribuita per zona e non dimostra la causa. Soglie: frenata ±15 m, minima ≥2 km/h, uscita ≥3 km/h, gas ≥15 m.</p>
+    </div>)
+}
+
+/** Per-corner driving analysis: same `driving.analyse` the live engineer / Driving Display use. */
+function DrivingTable({ d }: any) {
+  const t = (x: number | null | undefined) => x == null ? '–' : (x > 0 ? '+' : '') + x.toFixed(3)
+  return (
+    <div data-testid="driving">
+      <h3>Analisi di guida per curva <span className="tag">{d.session_mode?.label}</span></h3>
+      <table data-testid="driving-corners"><thead><tr><th>Curva</th><th>Freno (m)</th><th>Picco</th><th>Rilascio (m)</th><th>V ingresso</th><th>V min</th><th>Gas (m)</th><th>V uscita</th><th>Δ ingresso</th><th>Δ centro</th><th>Δ uscita</th></tr></thead>
+        <tbody>{d.corners.map((r: any) => <tr key={r.corner}><td>{r.corner}</td><td className="mono">{r.lap.brake_start_m ?? '–'}</td><td className="mono">{r.lap.brake_peak ?? '–'}</td>
+          <td className="mono">{r.lap.brake_release_m ?? '–'}</td><td className="mono">{r.lap.entry_speed_kmh ?? '–'}</td><td className="mono">{r.lap.min_speed_kmh ?? '–'}</td>
+          <td className="mono">{r.lap.throttle_on_m ?? '–'}</td><td className="mono">{r.lap.exit_speed_kmh ?? '–'}</td>
+          <td className="mono">{t(r.segments.entry.delta_s)}</td><td className="mono">{t(r.segments.mid.delta_s)}</td><td className="mono">{t(r.segments.exit.delta_s)}</td></tr>)}</tbody></table>
+      {d.findings.length > 0 && <ul data-testid="driving-findings">{d.findings.map((f: any, i: number) => <li key={i}><b>{f.corner}</b> {f.label} <span className={'tag conf-' + f.confidence.level}>{f.confidence.level}</span>
+        <span className="mut"> · {Object.entries(f.evidence).map(([k, v]) => `${k}=${v}`).join(', ')}{f.time_impact_s != null ? ` · ${t(f.time_impact_s)} s in ${f.phase}` : ''}</span></li>)}</ul>}
+      {d.gains.length > 0 && <ul data-testid="driving-gains">{d.gains.map((g: any, i: number) => <li key={i} className="ok"><b>{g.corner}</b> {g.label}: −{g.time_gain_s.toFixed(3)} s</li>)}</ul>}
+      <p className="mut">Una frenata più tardi non è automaticamente migliore: ogni curva è valutata sul tempo di ingresso, centro e uscita. Affidabilità del riferimento: {(d.reference_reliability * 100).toFixed(0)}%.</p>
     </div>)
 }

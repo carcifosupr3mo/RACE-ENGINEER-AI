@@ -23,6 +23,9 @@ SYSTEM = ("Sei l'ingegnere di pista di una gara di durata. Scrivi in italiano, m
           "Se un dato manca dillo. Non proporre modifiche di setup.")
 
 
+PIPELINE_KINDS = frozenset({"periodic_summary", "stint_end", "pit_stop", "event", "final_report"})   # other kinds (e.g. driving_analysis) belong to other listeners
+
+
 def _mmss(s: float) -> str:
     return f"{int(s // 60)}:{s % 60:06.3f}"
 
@@ -176,7 +179,7 @@ class EndurancePipeline:
             self.stats.ai_enqueued += 1
 
     def _on_ai_result(self, req: AIRequest, resp: AIResponse) -> None:
-        if req.session_id != self.sid:
+        if req.session_id != self.sid or req.kind not in PIPELINE_KINDS:
             return
         try:
             payload = self._payloads.pop(req.id, None) or json.loads(req.user)

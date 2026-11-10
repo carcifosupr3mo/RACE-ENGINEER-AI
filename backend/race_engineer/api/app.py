@@ -21,6 +21,9 @@ from ..lmu.diagnostics import STATE_LABELS_IT, ConnState, build_report
 from ..lmu.discovery import LmuInstall, find_install, is_lmu_process_running
 from ..analysis.align import align_lap
 from ..analysis.compare import compare, consistency
+from ..analysis import driving as drv_an
+from ..analysis.session_mode import classify as classify_session
+from ..live.engineer import LiveEngineer
 from ..analysis.corners import apply_profile, detect_corners
 from ..ai import chat as ai_chat
 from ..analysis import driver as drv
@@ -42,13 +45,30 @@ def clean(o):
     return o
 
 
+def _lan_ips() -> list[str]:
+    """Private IPv4 addresses of this PC (no packet is sent). Used only to print the LAN URL of the Driving Display."""
+    import socket
+    found: list[str] = []
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sk:
+            sk.connect(("10.255.255.255", 1))
+            found.append(sk.getsockname()[0])
+    except OSError:
+        pass
+    try:
+        found += [i[4][0] for i in socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET)]
+    except OSError:
+        pass
+    return [ip for ip in dict.fromkeys(found) if not ip.startswith(("127.", "169.254.", "0."))]
+
+
 STATIC = Path(__file__).parent / "static"
 LOCAL_HOSTS = {"127.0.0.1", "localhost", "[::1]", "::1"}
 
 
 def create_app(engine: AcquisitionEngine, catalog: Catalog, *, lan_enabled: bool = False,
                token: str | None = None, install: LmuInstall | None = None,
-               allowed_import_dirs: list[Path] | None = None) -> FastAPI:
+               allowed_import_dirs: list[Path] | None = None, webdist: Path | None = None, live_options: dict | None = None) -> FastAPI:
     """Security model:
     * default: server bound to loopback by the CLI; requests must carry a loopback Host header
       (DNS-rebinding protection) and, for WebSockets, a same-origin Origin.
@@ -107,12 +127,18 @@ def create_app(engine: AcquisitionEngine, catalog: Catalog, *, lan_enabled: bool
             return
         await ws.accept()
         try:
+            last_seq = live.seq
             while True:
                 s = engine.latest
                 d = engine.diagnostics()
                 d["state_label"] = STATE_LABELS_IT[ConnState(d["state"])]
-                await ws.send_json({"sample": s.to_json() if s else None, "status": d,
-                                    "context": dataclasses.asdict(engine.ctx) if engine.ctx else None})
+                ev = live.events_since(last_seq)
+                if ev:
+                    last_seq = ev[-1]["seq"]
+                # "engineer" = the SAME shared state served by /api/engineer/state (map excluded: fetched when map_version changes)
+                await ws.send_json(clean({"sample": s.to_json() if s else None, "status": d,
+                                          "context": dataclasses.asdict(engine.ctx) if engine.ctx else None,
+                                          "engineer": live.snapshot(), "events": ev}))
                 await asyncio.sleep(0.1)
         except Exception:
             return
@@ -223,6 +249,26 @@ def create_app(engine: AcquisitionEngine, catalog: Catalog, *, lan_enabled: bool
         res["provenance"] = sd.provenance
         return clean(res)
 
+    @app.get("/api/sessions/{sid}/driving")
+    def driving_api(sid: str, lap: int, ref: int | None = None):
+        """Driving analysis of a recorded lap vs the reference lap: the SAME ``driving.analyse`` the live engineer runs."""
+        row, sd, ls = _session(sid)
+        rl = _ref(sd, ls, ref)
+        target = next((l for l in ls if l.number == lap), None)
+        if target is None or not target.valid_for_analysis:
+            raise HTTPException(422, "lap is not a valid lap")
+        ra, la = align_lap(sd, rl), align_lap(sd, target)
+        if not (ra.quality["ok"] and la.quality["ok"]):
+            raise HTTPException(422, {"error": "alignment quality too low", "lap": la.quality, "ref": ra.quality})
+        n_valid = len([l for l in ls if l.valid_for_analysis and l.time_s])
+        reliability = 0.0 if n_valid < 2 else min(1.0, 0.25 * (n_valid - 1))
+        cs = apply_profile(detect_corners(ra), catalog.get_track_profile(row["track"] or ""))
+        res = drv_an.analyse(la, ra, cs, reliability=max(0.15, reliability))
+        res["corners_provisional"] = all(c.provisional for c in cs)
+        res["session_mode"] = classify_session(row["session_type"])
+        res["provenance"] = sd.provenance
+        return clean(res)
+
     @app.get("/api/sessions/{sid}/consistency")
     def consistency_api(sid: str):
         row, sd, ls = _session(sid)
@@ -298,6 +344,49 @@ def create_app(engine: AcquisitionEngine, catalog: Catalog, *, lan_enabled: bool
 
     if engine.data_root is not None:
         endurance()          # start local endurance analysis together with the app (never touches acquisition on failure)
+
+    # ------------------------------------------------------------------ unified live engineer (ONE state for dashboard + Driving Display)
+    def _endurance_snapshot():
+        svc = getattr(app.state, "endurance", None)
+        p = getattr(svc, "current", None)
+        return p.det.snapshot() if p is not None else None
+
+    def _ai_queue():
+        svc = getattr(app.state, "endurance", None)
+        return getattr(svc, "queue", None)
+
+    live = app.state.live = LiveEngineer(engine, catalog, engine.data_root, endurance_snapshot=_endurance_snapshot, ai_queue=_ai_queue,
+                                          **(live_options or {}))
+
+    @app.get("/api/engineer/state")
+    def engineer_state(full: bool = False):
+        return clean(live.snapshot(full=full))
+
+    @app.get("/api/engineer/map")
+    def engineer_map():
+        return clean(live.map_payload())
+
+    @app.get("/api/engineer/events")
+    def engineer_events(since: int = 0):
+        return {"events": clean(live.events_since(since)), "seq": live.seq}
+
+    @app.get("/api/engineer/reference")
+    def engineer_reference():
+        return clean(live.ref.to_json() if live.ref else {"laps": [], "reliability": {"level": "nessuno", "learning": True}})
+
+    @app.get("/api/engineer/status")
+    def engineer_status():
+        return live.status()
+
+    @app.get("/api/display/info")
+    def display_info(request: Request):
+        """How to open the Driving Display (second monitor on this PC, or LAN browser). The page is served by this same backend."""
+        port = request.url.port or (443 if request.url.scheme == "https" else 80)
+        q = f"?token={token}" if lan_enabled else ""
+        urls = [f"http://{ip}:{port}/driving-display{q}" for ip in _lan_ips()] if lan_enabled else []
+        return {"path": "/driving-display", "local_url": f"http://127.0.0.1:{port}/driving-display", "lan_enabled": lan_enabled, "lan_urls": urls,
+                "how_to_enable_lan": None if lan_enabled else "avvia con --lan (il token di accesso viene mostrato all'avvio)",
+                "websocket": "/ws/live (campo 'engineer')", "api": "/api/engineer/state"}
 
     @app.get("/api/endurance/status")
     def endurance_status():
@@ -401,9 +490,17 @@ def create_app(engine: AcquisitionEngine, catalog: Catalog, *, lan_enabled: bool
 
     app.mount("/static", StaticFiles(directory=STATIC), name="static")
 
-    dist = Path(__file__).parent / "webdist"
+    dist = webdist if webdist is not None else Path(__file__).parent / "webdist"
     if dist.is_dir():
         app.mount("/app", StaticFiles(directory=dist, html=True), name="webapp")
+
+    @app.get("/driving-display")
+    @app.get("/driving-display/")
+    def driving_display():
+        """The Driving Display is a presentation mode of the SAME web app (route chosen client-side); data comes from /ws/live + /api/engineer/*."""
+        if (dist / "index.html").is_file():
+            return FileResponse(dist / "index.html", headers={"Cache-Control": "no-store"})
+        return JSONResponse({"detail": "frontend not built (npm run build in frontend/)"}, status_code=503)
 
     @app.get("/diag")
     def diag():

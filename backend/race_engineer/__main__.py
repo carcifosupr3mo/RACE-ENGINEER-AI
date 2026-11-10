@@ -28,7 +28,7 @@ def _engine(args, record=True):
 
         def run():  # fake game publishing at real time (SYNTHETIC)
             while not stop.is_set() and game.step():
-                time.sleep(0.01)
+                time.sleep(0.01 / max(0.1, getattr(args, "synthetic_speed", 1.0)))
             game.end_session()
         threading.Thread(target=run, daemon=True).start()
         return AcquisitionEngine(lambda: game.backend, catalog=cat, data_root=root, record=record), cat
@@ -60,8 +60,12 @@ def cmd_serve(args) -> int:
     app = create_app(eng, cat, lan_enabled=args.lan, install=inst)
     host = "0.0.0.0" if args.lan else "127.0.0.1"
     if args.lan:
-        print(f"LAN access ENABLED. Bearer token (keep private): {app.state.token}")
+        from .api.app import _lan_ips
+        print(f"LAN access ENABLED. Bearer token (keep private): {app.state.token}", flush=True)
+        for ip in _lan_ips():
+            print(f"Driving Display (browser on Raspberry/tablet): http://{ip}:{args.port}/driving-display?token={app.state.token}", flush=True)
     print(f"UI: http://127.0.0.1:{args.port}/   (synthetic={bool(args.synthetic)})")
+    print(f"Driving Display (second monitor on this PC): http://127.0.0.1:{args.port}/driving-display" + (f"?token={app.state.token}" if args.lan else ""))
     try:
         uvicorn.run(app, host=host, port=args.port, log_level="warning")
     finally:
@@ -194,6 +198,7 @@ def main(argv=None) -> int:
                                                "missing_samples", "incomplete", "no_tyre_data", "mixed"],
                        help="use the SYNTHETIC fake game (never real LMU data)")
         p.add_argument("--laps", type=int, default=3, help="laps of the synthetic session")
+        p.add_argument("--synthetic-speed", type=float, default=1.0, help="play the SYNTHETIC game faster than real time (tests/demos only)")
         if name == "serve":
             p.add_argument("--lan", action="store_true", help="expose on the LAN (off by default; token required)")
             p.add_argument("--port", type=int, default=8765)

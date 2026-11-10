@@ -29,3 +29,4 @@ Una fase è "completata" solo se i criteri di accettazione sono rispettati **con
 **Prossimo passo bloccante:** eseguire la procedura in [docs/LMU-INTEGRATION.md](docs/LMU-INTEGRATION.md) su Windows con LMU
 aperto e riportare l'esito; correggere `layout.py` se la dimensione o i campi differiscono.
 Poi Fase 2 (giri validi, riconoscimento circuito/vettura, import DuckDB in sessione), poi Fase 3.
+| 11 Sistema unificato con doppio display | ✅ implementato e testato con dati sintetici, 🟡 non verificato su LMU/hardware reali | un solo ingegnere (stato condiviso), analisi di guida per fasi, riferimento personale progressivo, adattamento alla sessione, Driving Display su `/driving-display` (secondo monitor o LAN); vedi [docs/UNIFIED_DRIVING_DISPLAY.md](docs/UNIFIED_DRIVING_DISPLAY.md) |

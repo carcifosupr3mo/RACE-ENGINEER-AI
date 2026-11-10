@@ -9,9 +9,10 @@ import Driver from './components/Driver'
 import SetupAdvisor from './components/SetupAdvisor'
 import TrackAnalysis from './components/TrackAnalysis'
 import AiSettings from './components/AiSettings'
+import DisplayInfo from './components/DisplayInfo'
 
 const SECTIONS: [string, string, number | null][] = [
-  ['overview', 'Overview', null], ['live', 'Live Telemetry', null], ['sessions', 'Sessions', null],
+  ['overview', 'Overview', null], ['live', 'Live Telemetry', null], ['display', 'Driving Display', null], ['sessions', 'Sessions', null],
   ['laps', 'Lap Analyzer', null], ['track', 'Track Analysis', null], ['ai', 'Race Engineer AI', null],
   ['setup', 'Setup Advisor', null], ['tyre', 'Tyre & Fuel', null], ['driver', 'Driver Development', null], ['settings', 'Settings', null],
 ]
@@ -38,6 +39,7 @@ export default function App() {
       <main>
         {sec === 'overview' && <Overview health={health} go={setSec} />}
         {sec === 'live' && <Live />}
+        {sec === 'display' && <DisplayInfo />}
         {sec === 'sessions' && <Sessions onOpen={openLaps} />}
         {sec === 'laps' && <LapAnalyzer sessionId={session} onPick={setSession} />}
         {sec === 'setup' && <SetupAdvisor sessionId={session} onPick={setSession} />}

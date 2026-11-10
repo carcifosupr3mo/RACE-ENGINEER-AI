@@ -1,4 +1,14 @@
 # CHANGELOG
+## 0.5.0 (non rilasciata) — Sistema unificato con doppio display
+- **Un solo ingegnere di pista**: nuovo `LiveEngineer` (stato condiviso) agganciato all'unico `AcquisitionEngine`; nessun secondo motore/flusso/agente AI. Dettagli in `docs/UNIFIED_DRIVING_DISPLAY.md`.
+- Analisi di guida per fasi (frenata, rilascio, apice, gas, uscita, tempi ingresso/centro/uscita) con giudizio sull'intera curva (la frenata più tardi non è automaticamente migliore) e confidenza (`analysis/driving.py`).
+- Riferimento personale progressivo e persistente per circuito/vettura, sintetico separato (`analysis/reference.py`); adattamento automatico al tipo di sessione (`analysis/session_mode.py`).
+- Arbitro dei suggerimenti: uno solo, legato alla curva, con affidabilità; congelato in guida impegnativa; stato «apprendimento» se i dati non bastano; allarmi dalle soglie dell'EventDetector (`live/suggestions.py`).
+- AI: nuovi fatti di guida, interpretazione periodica via la coda AI esistente (aggregati, grounding); la pipeline endurance ignora le risposte di altri tipi.
+- API: `/api/engineer/{state,map,events,reference,status}`, `/api/sessions/{id}/driving`, `/api/display/info`, `/driving-display`; il WebSocket `/ws/live` porta `engineer` + `events`.
+- **Driving Display** (`/driving-display`, stesso bundle, chunk separato ~13 kB senza Plotly): mappa interattiva dai dati di posizione reali, delta, velocità, marcia, giri, pedali, curva attuale/prossima, un suggerimento, allarmi, riconnessione automatica e stato offline; dashboard: blocco «Ingegnere di pista» nella Live, sezione «Driving Display», tabella di analisi di guida nel Lap Analyzer.
+- Shell desktop: voce di menu «Apri Driving Display (secondo monitor)», `Ctrl+D`, `--display`, `--lan` (opt-in, token) e «Driving Display in rete». CLI: `serve --lan` stampa l'URL del display; `--synthetic-speed` per test/demo.
+- Test: +25 pytest (182 totali), +4 vitest, e2e Playwright del display, smoke 28 controlli (7 nuovi). Nessuna verifica con LMU reale.
 ## 0.4.1 (non rilasciata)
 - Procedura Windows guidata `PROCEDURA_VERIFICA.ps1`: preflight, registrazione >= 60 s con marcature HUD, report DuckDB/setup, riepilogo, controllo integrita' originali e report salvati. Test PowerShell in CI.
 - Nuovi comandi `preflight`, `hud-compare`, `verification-summary`; commit registrato in `build_info.json`.

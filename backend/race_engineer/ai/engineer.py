@@ -60,6 +60,7 @@ def answer(question: str, facts: list[Fact], meta: dict) -> dict:
 
     kind = lambda k: [f for f in facts if f.kind == k]
     findings = kind("finding")
+    driving = kind("driving_finding")
     n_cmp = max(0, meta["n_valid"] - 1)
     if meta["n_valid"] < 2 and intent not in ("progress", "best_sector"):
         add([by_id["S1"]] + ([by_id["S2"]] if "S2" in by_id else []))
@@ -83,7 +84,11 @@ def answer(question: str, facts: list[Fact], meta: dict) -> dict:
                     sugg.append(_advice(t, f.values["corner"]))
     elif intent == "braking":
         fs = [f for f in findings if f.values["type"] in ("early_braking", "late_braking", "brake_peak_higher", "early_brake_release")]
+        dfs = [f for f in driving if f.values["type"] in ("early_braking", "inefficient_late_braking", "braking_too_long", "abrupt_release")]
         add(fs[:6] or [f for f in kind("corner")][:3])
+        add(dfs[:4])
+        for t in sorted({f.values["type"] for f in dfs}):
+            sugg.append(_advice(t, None))
         add([f for f in kind("consistency")][:4])
         if not fs:
             interp.append("Nessuna differenza di frenata oltre soglia (±15 m sul punto di frenata) rispetto al giro migliore.")
@@ -92,6 +97,9 @@ def answer(question: str, facts: list[Fact], meta: dict) -> dict:
     elif intent == "throttle":
         fs = [f for f in findings if f.values["type"] in ("late_throttle", "slow_exit")]
         add(fs[:6])
+        add([f for f in driving if f.values["type"] == "delayed_acceleration"][:4])
+        if any(f.values["type"] == "delayed_acceleration" for f in driving):
+            sugg.append(_advice("delayed_acceleration", None))
         if not fs:
             interp.append("Nessuna ripresa del gas tardiva (≥15 m) né uscita più lenta (≥3 km/h) rispetto al giro migliore.")
         for t in sorted({f.values["type"] for f in fs}):
@@ -161,4 +169,10 @@ def _advice(t: str, corner: str | None) -> str:
         "low_min_speed": f"Cerca di portare più velocità all'apice{where}, senza compromettere l'uscita.",
         "early_brake_release": f"Mantieni il freno più a lungo{where} nella fase di rilascio, valutando l'effetto sull'inserimento.",
         "brake_peak_higher": f"Modula il picco di pressione sul freno{where}.",
+        "inefficient_late_braking": f"La frenata più tardi{where} non ripaga sull'intera curva: anticipa leggermente il punto di frenata e verifica minima e uscita.",
+        "braking_too_long": f"Rilascia il freno prima{where}: la frenata è più lunga di quella del giro di riferimento.",
+        "abrupt_release": f"Rilascia il freno in modo più progressivo{where}.",
+        "delayed_acceleration": f"Anticipa il gas pieno{where} dopo l'apice.",
+        "insufficient_min_speed": f"Porta più velocità all'apice{where}.",
+        "inefficient_line": f"Pulisci la traiettoria{where}: meno sterzo a centro curva.",
     }.get(t, f"Rivedi il comportamento «{t}»{where}.")

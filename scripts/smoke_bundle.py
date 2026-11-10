@@ -12,6 +12,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import urllib.error
 import urllib.request
 from pathlib import Path
 
@@ -92,6 +93,17 @@ def main():
             prov = json.loads(get(base + "/api/ai/providers")[1])
             rec("/api/ai/providers reports key status without any key value", "keys" in prov and "nvapi" not in json.dumps(prov) and "gsk_" not in json.dumps(prov))
             rec("/api/endurance/status", "memory" in json.loads(get(base + "/api/endurance/status")[1]))
+            st, body = get(base + "/driving-display")
+            rec("/driving-display served by the same backend (Driving Display page)", st == 200 and b"<div id=\"root\"" in body)
+            es = json.loads(get(base + "/api/engineer/state?full=1")[1])
+            rec("shared engineer state: session mode, reference, suggestion block, synthetic flag",
+                es.get("ready") is True and es["session"]["mode"]["mode"] in ("practice", "qualifying", "race", "endurance", "test", "generic")
+                and "suggestion" in es and es["synthetic"] is True and es["schema"] == 1, {k: es.get(k) for k in ("ready", "synthetic", "schema")})
+            info = json.loads(get(base + "/api/display/info")[1])
+            rec("/api/display/info gives the second-monitor URL and says LAN is off by default",
+                info["path"] == "/driving-display" and info["lan_enabled"] is False and info["lan_urls"] == [], info)
+            mp = json.loads(get(base + "/api/engineer/map")[1])
+            rec("/api/engineer/map answers (real positions or an explicit reason, never invented)", ("points" in mp) or ("reason" in mp), list(mp))
             fin = []
             for _ in range(120):                                     # chat needs a finished session (the live one answers 409)
                 fin = [x for x in json.loads(get(base + "/api/sessions")[1]) if x["status"] != "recording" and x["samples"] > 0]
@@ -110,6 +122,8 @@ def main():
                     rec("grounded chat answers (rules engine)", "observed" in ans)
                 except Exception as e:
                     rec("grounded chat answers (rules engine)", False, e)
+        if up:                                                      # LAN opt-in: token required, URL printed for the Raspberry/tablet browser
+            pass
     finally:
         if sys.platform == "win32":
             p.terminate()
@@ -120,6 +134,41 @@ def main():
             rec("controlled shutdown", True)
         except subprocess.TimeoutExpired:
             p.kill(); rec("controlled shutdown", False, "had to kill")
+    # --lan: every /api call needs the token; the Driving Display URL with the token is printed at start
+    port = free_port()
+    p = subprocess.Popen(cli + ["serve", "--synthetic", "constant", "--laps", "1", "--lan", "--port", str(port)], env=env,
+                         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    try:
+        t0, up, tok = time.time(), False, None
+        lanbase = f"http://127.0.0.1:{port}"
+        first = p.stdout.readline() if p.stdout else ""
+        tok = first.split("token (keep private):")[-1].strip() if "token" in first else None
+        while time.time() - t0 < 60 and not up:
+            try:
+                up = get(lanbase + "/driving-display", 2)[0] == 200
+            except Exception:
+                time.sleep(0.5)
+        rec("serve --lan starts and serves the Driving Display page", up)
+        if up:
+            try:
+                no_tok = get(lanbase + "/api/engineer/state", 5)[0]
+            except urllib.error.HTTPError as e:
+                no_tok = e.code
+            rec("--lan: /api/engineer/state without token is refused (403)", no_tok == 403, no_tok)
+            if tok:
+                st, body = get(lanbase + "/api/engineer/state?token=" + tok, 5)
+                rec("--lan: with the token the shared state is served", st == 200 and b'"schema"' in body)
+                info = json.loads(get(lanbase + "/api/display/info?token=" + tok, 5)[1])
+                rec("--lan: /api/display/info lists http://IP:PORT/driving-display?token=... or says no private IP found",
+                    info["lan_enabled"] is True and all(u.endswith("/driving-display?token=" + tok) for u in info["lan_urls"]), info["lan_urls"])
+            else:
+                rec("--lan prints the token at start", False, first[:80])
+    finally:
+        p.terminate()
+        try:
+            p.wait(20)
+        except subprocess.TimeoutExpired:
+            p.kill()
     # reopen with the same data dir: persistence
     port = free_port()
     p = subprocess.Popen(cli + ["serve", "--port", str(port)], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)

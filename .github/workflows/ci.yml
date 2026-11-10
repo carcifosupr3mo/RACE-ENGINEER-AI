@@ -18,6 +18,28 @@ jobs:
         with: { node-version: "22" }
       - run: npm ci && npm run build && npm test
         working-directory: frontend
+  display-e2e:          # Driving Display in Chromium against a backend serving SYNTHETIC data (updates, map, interaction, coherence, offline/reconnect, 4 viewports)
+    runs-on: ubuntu-latest
+    needs: [backend, frontend]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.13" }
+      - uses: actions/setup-node@v4
+        with: { node-version: "22" }
+      - run: pip install -e "backend[dev]"
+      - run: npm ci && npm run build && npm install --no-save playwright@1.49.1 && npx playwright install --with-deps chromium
+        working-directory: frontend
+      - name: start synthetic backend (faster than real time) and run the display e2e
+        working-directory: frontend
+        run: |
+          mkdir -p "$RUNNER_TEMP/red" && export RACE_ENGINEER_DATA="$RUNNER_TEMP/red"
+          python -m race_engineer serve --synthetic mixed --laps 12 --synthetic-speed 6 --port 8790 &
+          for i in $(seq 1 60); do curl -sf http://127.0.0.1:8790/api/health && break; sleep 1; done
+          node e2e/display.cjs http://127.0.0.1:8790 "$RUNNER_TEMP/shots"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: display-screenshots, path: "${{ runner.temp }}/shots" }
   windows-procedure:    # PowerShell verification procedure, tested on real Windows PowerShell 5.1 and PowerShell 7 WITHOUT LMU (synthetic fixtures)
     runs-on: windows-latest
     steps:

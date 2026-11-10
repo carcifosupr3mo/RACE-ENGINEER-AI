@@ -58,6 +58,15 @@ Test Python (offline, sintetici): `backend/tests/test_verification_flow.py` (pre
 
 **Non verificato (richiede LMU reale)**: tutto cio' che riguarda mapping/offset/gameVersion reali, frequenza e campioni da LMU, confronto HUD reale, DuckDB e setup reali, interazione di tasti (INVIO per le marcature) e prompt interattivi (testati solo in modalita' `-NonInteractive`), commit nel pacchetto (`build_info.json`) non asserito dai test sul pacchetto.
 
+## Sistema unificato con Driving Display (v0.5.0) — SOLO dati sintetici, nessun LMU
+Eseguito in locale (Linux, sandbox), tutto **sintetico**:
+- backend: 182 pytest (157 preesistenti + 25 nuovi: `test_driving_analysis.py`, `test_live_engineer.py`).
+- frontend: 8 vitest (4 preesistenti + 4 nuovi); `npm run build` rigenerato in `webdist`.
+- `scripts/smoke_bundle.py --source`: 28 controlli (8 nuovi: pagina display, stato condiviso, info display, mappa, `--lan` token/403/URL), incluso lo shell desktop Qt WebEngine che renderizza il display.
+- Playwright `frontend/e2e/display.cjs`: banner sintetico, velocità live via WebSocket, stato di apprendimento, mappa da posizioni reali con zone, un solo suggerimento, delta, modalità sessione, zoom, tap su curva, coerenza dashboard/display/REST, stato offline e riconnessione automatica, 4 viewport (1280x800, 1024x600, 800x480, 600x1000) senza scroll né ritagli.
+
+**Non verificato**: LMU reale (posizioni, orientamento assi, numerazione curve su dati veri), secondo monitor fisico, Raspberry/tablet in LAN, provider AI reali, esito CI Windows di questo commit (vedi sezione CI dopo il push).
+
 ## Stato per elemento
 
 | Elemento | Stato |
