@@ -125,3 +125,12 @@ Nota: dal log scaricato (ultime 400 righe) ho letto direttamente solo la riga `2
 I due hash sono stati ricalcolati sui file estratti e coincidono con `SHA256SUMS.txt` dell'artefatto e col log CI. Contenuto verificato: `build_info.json` → commit `e9675dcdda13abcc2d1ee7feb76f5fd4159da1bb`; `webdist` con `DrivingDisplay-*.js` (incl. tutto schermo); `AVVIA_CON_DISPLAY.bat`, `VERIFICA_DISPLAY.bat`, `VERIFICA_LMU.bat`, `PROCEDURA_VERIFICA.*`, `race-engineer-cli.exe`, `RaceEngineerAI.exe`. Build non riproducibili: ogni run ha hash diversi; vale il `SHA256SUMS.txt` dell'artefatto scaricato. Run 11 (`d5c13a8`) è anch'esso verde su 5 job. Un push solo-documentale genera un nuovo run e un nuovo artefatto con hash diversi.
 
 **Ancora NON verificato**: tutto ciò che richiede LMU reale (Shared Memory, offset, orientamento mappa, numerazione curve), secondo monitor fisico, Raspberry/tablet in LAN, firewall reale, provider AI reali, installazione su un PC pulito (exe non firmato, SmartScreen).
+
+## Esito CI del commit `ddb972a` (coaching) — [run 14 `42788455865`](https://github.com/carcifosupr3mo/RACE-ENGINEER-AI/actions/runs/42788455865), 2026-11-10: **success** (5 job su 5)
+- Job: backend (pytest), frontend, display-e2e, windows-procedure (PS 5.1 e 7), windows-bundle (exe congelato, installer, installazione silenziosa + smoke della copia installata, procedura PowerShell sull'exe congelato): tutti `success`.
+- Test locali pre-push (SINTETICI): 201 pytest, 8 vitest, smoke sorgente 30/30, e2e Playwright del Driving Display tutti passati; `live-check` su sintetico = codice 3 (voluto).
+- Artefatto `RaceEngineerAI-windows` (id 13750948241, digest GitHub = SHA-256 dello zip scaricato, verificato): `2447ae2b765567e7b1ef380f9293a0f5b223983312ce93efaa461fc4a6015fe2`
+  - `RaceEngineerAI-Setup-0.1.0.exe`: `7086fd3097ff5f82d5925e9c7d406d87260462c80e7343a4f45143a1a89fb37d`
+  - `RaceEngineerAI-win32.zip`: `312f913b4c18af9554bf42821a0a9291342621fa347fcc4960d67655c2db63c1`
+- Questo commit di documentazione avvia una nuova run CI; i checksum sopra si riferiscono SOLO alla run 14 (`ddb972a`), non alla run successiva.
+- Verificato su Windows (CI): build, installer, smoke, procedura PowerShell. **NON verificato con LMU reale.**
