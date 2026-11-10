@@ -17,18 +17,43 @@ SetupIconFile=icon.ico
 UninstallDisplayIcon={app}\RaceEngineerAI.exe
 Compression=lzma2/fast
 SolidCompression=yes
+; zero-click: no directory/group/ready/finish pages; the app starts by itself when the install is done
+DisableDirPage=yes
+DisableProgramGroupPage=yes
+DisableReadyPage=yes
+DisableFinishedPage=yes
+DisableWelcomePage=yes
+CloseApplications=yes
 ArchitecturesInstallIn64BitMode=x64compatible
 [Files]
 Source: "..\dist\RaceEngineerAI\*"; DestDir: "{app}"; Flags: recursesubdirs ignoreversion
 Source: "..\scripts\windows\*.bat"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\scripts\windows\*.ps1"; DestDir: "{app}"; Flags: ignoreversion
 [Icons]
-Name: "{group}\Race Engineer AI"; Filename: "{app}\RaceEngineerAI.exe"
+Name: "{group}\Race Engineer AI"; Filename: "{app}\RaceEngineerAI.exe"; Parameters: "--display"
 Name: "{group}\Verifica LMU reale"; Filename: "{app}\VERIFICA_LMU.bat"
 Name: "{group}\Avvia con Driving Display"; Filename: "{app}\AVVIA_CON_DISPLAY.bat"
-Name: "{autodesktop}\Race Engineer AI"; Filename: "{app}\RaceEngineerAI.exe"; Tasks: desktopicon
-[Tasks]
-Name: desktopicon; Description: "Icona sul desktop"; Flags: unchecked
+Name: "{autodesktop}\Race Engineer AI"; Filename: "{app}\RaceEngineerAI.exe"; Parameters: "--display"
 [Run]
-Filename: "{app}\RaceEngineerAI.exe"; Description: "Avvia Race Engineer AI"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\RaceEngineerAI.exe"; Parameters: "--display"; Description: "Avvia Race Engineer AI"; Flags: nowait; Check: not WizardSilent
 ; User data (%LOCALAPPDATA%\RaceEngineerAI) is NOT removed on uninstall: sessions and race memory are the user's data.
+
+[Code]
+{ Same exe = installer + launcher. Already installed at this version: only check that the files are there, start the app, exit
+  (no copy, no reinstall). New or different version: normal install, then the app starts. Silent installs (CI) always install. }
+function InitializeSetup(): Boolean;
+var
+  Ver, Loc: String;
+  Rc: Integer;
+begin
+  Result := True;
+  if WizardSilent then Exit;
+  if RegQueryStringValue(HKCU, 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{6E1B7C3A-5D0F-4C1E-9A55-2B8F0A1D7E10}_is1', 'DisplayVersion', Ver)
+     and (Ver = '{#AppVer}')
+     and RegQueryStringValue(HKCU, 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{6E1B7C3A-5D0F-4C1E-9A55-2B8F0A1D7E10}_is1', 'InstallLocation', Loc)
+     and FileExists(AddBackslash(Loc) + 'RaceEngineerAI.exe') then
+  begin
+    Exec(AddBackslash(Loc) + 'RaceEngineerAI.exe', '--display', Loc, SW_SHOW, ewNoWait, Rc);
+    Result := False;
+  end;
+end;
