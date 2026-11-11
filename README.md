@@ -8,8 +8,8 @@ Vedi [ROADMAP.md](ROADMAP.md) e [docs/LMU-INTEGRATION.md](docs/LMU-INTEGRATION.m
 
 ## ⬇️ Download per Windows (pronto all'uso)
 
-**[Scarica RaceEngineerAI-win32.zip (portatile, 310 MB)](https://github.com/carcifosupr3mo/RACE-ENGINEER-AI/releases/download/v0.6.2-rc2/RaceEngineerAI-win32.zip)** — estrai, poi doppio clic su `RaceEngineerAI.exe` (nessuna finestra cmd; `Ctrl+D` apre il Driving Display). `AVVIA_CON_DISPLAY.bat` fa lo stesso con porta fissa 8765 ma, essendo un `.bat`, mostra per un attimo una finestra cmd.
-Alternativa: [installer](https://github.com/carcifosupr3mo/RACE-ENGINEER-AI/releases/download/v0.6.2-rc2/RaceEngineerAI-Setup-0.1.0.exe) · [tutte le release](https://github.com/carcifosupr3mo/RACE-ENGINEER-AI/releases) · hash in `SHA256SUMS.txt` della release.
+**[Scarica RaceEngineerAI-win32.zip (portatile, 310 MB)](https://github.com/carcifosupr3mo/RACE-ENGINEER-AI/releases/download/v0.6.3-rc1/RaceEngineerAI-win32.zip)** — estrai, poi doppio clic su `RaceEngineerAI.exe` (nessuna finestra cmd; `Ctrl+D` apre il Driving Display). `AVVIA_CON_DISPLAY.bat` fa lo stesso con porta fissa 8765 ma, essendo un `.bat`, mostra per un attimo una finestra cmd.
+Alternativa: [installer](https://github.com/carcifosupr3mo/RACE-ENGINEER-AI/releases/download/v0.6.3-rc1/RaceEngineerAI-Setup-0.6.3.exe) · [tutte le release](https://github.com/carcifosupr3mo/RACE-ENGINEER-AI/releases) · hash in `SHA256SUMS.txt` della release.
 Build testata in CI su Windows con dati sintetici, **non ancora verificata con LMU reale**. Non firmata: SmartScreen può avvisare.
 (Il pulsante verde *Code → Download ZIP* scarica solo i sorgenti, senza exe.)
 
@@ -18,7 +18,7 @@ Build testata in CI su Windows con dati sintetici, **non ancora verificata con L
 2. Verifica gli hash **prima** di aprire i file (devono coincidere con `SHA256SUMS.txt` e con [docs/VALIDATION.md](docs/VALIDATION.md)):
 ```powershell
 Get-FileHash .\RaceEngineerAI-win32.zip -Algorithm SHA256
-Get-FileHash .\RaceEngineerAI-Setup-0.1.0.exe -Algorithm SHA256
+Get-FileHash .\RaceEngineerAI-Setup-0.6.3.exe -Algorithm SHA256
 ```
 3. Estrai `RaceEngineerAI-win32.zip` in una cartella (es. `C:\RaceEngineerAI`) e fai doppio clic su **`AVVIA_CON_DISPLAY.bat`**: dashboard su `http://127.0.0.1:8765/app/`, Driving Display su `http://127.0.0.1:8765/driving-display` (tasto **F** = tutto schermo sul secondo monitor).
 4. Avvia LMU, fai almeno 3 giri, poi **`VERIFICA_DISPLAY.bat`** (report anonimizzato; codice 0 = dati reali e passi automatici OK, 3 = incompleto/sintetico, 2 = app non raggiungibile).
