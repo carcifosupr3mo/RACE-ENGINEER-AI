@@ -1,5 +1,5 @@
 name: ci
-on: [push, pull_request]
+on: [push, pull_request, workflow_dispatch]   # workflow_dispatch: manual build (e.g. when a push run is lost in a GitHub outage)
 jobs:
   backend:
     runs-on: ubuntu-latest
