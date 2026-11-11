@@ -30,12 +30,12 @@ Source: "..\dist\RaceEngineerAI\*"; DestDir: "{app}"; Flags: recursesubdirs igno
 Source: "..\scripts\windows\*.bat"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\scripts\windows\*.ps1"; DestDir: "{app}"; Flags: ignoreversion
 [Icons]
-Name: "{group}\Race Engineer AI"; Filename: "{app}\RaceEngineerAI.exe"; Parameters: "--display"
+Name: "{group}\Race Engineer AI"; Filename: "{app}\RaceEngineerAI.exe"; Parameters: "--display-auto"
 Name: "{group}\Verifica LMU reale"; Filename: "{app}\VERIFICA_LMU.bat"
 Name: "{group}\Avvia con Driving Display"; Filename: "{app}\RaceEngineerAI.exe"; Parameters: "--port 8765 --display"
-Name: "{autodesktop}\Race Engineer AI"; Filename: "{app}\RaceEngineerAI.exe"; Parameters: "--display"
+Name: "{autodesktop}\Race Engineer AI"; Filename: "{app}\RaceEngineerAI.exe"; Parameters: "--display-auto"
 [Run]
-Filename: "{app}\RaceEngineerAI.exe"; Parameters: "--display"; Description: "Avvia Race Engineer AI"; Flags: nowait; Check: not WizardSilent
+Filename: "{app}\RaceEngineerAI.exe"; Parameters: "--display-auto"; Description: "Avvia Race Engineer AI"; Flags: nowait; Check: not WizardSilent
 ; User data (%LOCALAPPDATA%\RaceEngineerAI) is NOT removed on uninstall: sessions and race memory are the user's data.
 
 [Code]
@@ -53,7 +53,7 @@ begin
      and RegQueryStringValue(HKCU, 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{6E1B7C3A-5D0F-4C1E-9A55-2B8F0A1D7E10}_is1', 'InstallLocation', Loc)
      and FileExists(AddBackslash(Loc) + 'RaceEngineerAI.exe') then
   begin
-    Exec(AddBackslash(Loc) + 'RaceEngineerAI.exe', '--display', Loc, SW_SHOW, ewNoWait, Rc);
+    Exec(AddBackslash(Loc) + 'RaceEngineerAI.exe', '--display-auto', Loc, SW_SHOW, ewNoWait, Rc);
     Result := False;
   end;
 end;

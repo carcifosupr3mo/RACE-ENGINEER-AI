@@ -16,6 +16,9 @@ import time
 from ..lmu.diagnostics import STATE_LABELS_IT, ConnState
 
 
+RELEASES_URL = "https://github.com/carcifosupr3mo/RACE-ENGINEER-AI/releases"
+
+
 class Backend:
     """In-process backend with controlled start/stop."""
 
@@ -91,6 +94,7 @@ def run(argv=None) -> int:
     ap.add_argument("--lan", action="store_true", help="expose the Driving Display on the local network (token required; off by default)")
     ap.add_argument("--port", type=int, default=0, help="fixed port (default: a free one); needed by VERIFICA_DISPLAY.bat / live-check")
     ap.add_argument("--display", action="store_true", help="open the Driving Display on the second monitor at start")
+    ap.add_argument("--display-auto", action="store_true", help="open the Driving Display at start only if a second monitor is connected")
     args = ap.parse_args(argv)
     if args.smoke:
         os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -98,12 +102,15 @@ def run(argv=None) -> int:
     from PySide6.QtCore import Qt, QTimer, QUrl
     from PySide6.QtGui import QAction, QColor, QIcon, QPainter, QPixmap
     from PySide6.QtWebEngineWidgets import QWebEngineView
-    from PySide6.QtGui import QGuiApplication, QKeySequence, QShortcut
+    from PySide6.QtCore import QSettings
+    from PySide6.QtGui import QDesktopServices, QGuiApplication, QKeySequence, QShortcut
     from PySide6.QtWidgets import QApplication, QMainWindow, QMenu, QSystemTrayIcon
 
     from PySide6.QtCore import QDir, QLockFile
     from PySide6.QtWidgets import QMessageBox
+    from .. import __version__
     from ..ai.providers.credentials import RedactFilter
+    from . import autostart, single_instance
     from ..storage.paths import data_dir
     import logging
     import logging.handlers
@@ -118,9 +125,13 @@ def run(argv=None) -> int:
     app.setApplicationName("Race Engineer AI")
     lock = QLockFile(QDir.temp().filePath("race_engineer_ai_%s.lock" % ("smoke" if args.smoke else "app")))
     lock.setStaleLockTime(15000)
+    instance_name = single_instance.NAME + ("_smoke" if args.smoke else "")
     if not lock.tryLock(100):             # a second instance would fight over the shared memory reader and data files
-        if not args.smoke:
-            QMessageBox.information(None, "Race Engineer AI", "Race Engineer AI è già in esecuzione (controlla l'icona nella barra di sistema).")
+        if args.smoke:
+            return 3
+        if single_instance.notify_running(instance_name):      # normally the running copy just shows its window
+            return 0
+        QMessageBox.information(None, "Race Engineer AI", "Race Engineer AI è già in esecuzione (controlla l'icona nella barra di sistema).")
         return 3
 
     def excepthook(et, ev, tb):
@@ -143,6 +154,9 @@ def run(argv=None) -> int:
         print(f"SMOKE backend start failed: {e}")
         return 1
     win = QMainWindow(); win.setWindowTitle("Race Engineer AI"); win.setWindowIcon(icon); win.resize(1400, 900)
+    settings = QSettings("RaceEngineerAI", "Desktop")       # window size/position only (per user)
+    if not args.smoke and settings.value("geometry") is not None:
+        win.restoreGeometry(settings.value("geometry"))
     view = QWebEngineView(); win.setCentralWidget(view); view.load(QUrl(backend.url))
     tray = QSystemTrayIcon(icon, app)
     quitting = {"v": False}
@@ -181,20 +195,55 @@ def run(argv=None) -> int:
         QMessageBox.information(None, "Driving Display in rete", "Apri uno di questi indirizzi dal browser del Raspberry/tablet (copiato negli appunti il primo).\n"
                                 "L'indirizzo contiene il token di accesso: tienilo privato.\n\n" + txt)
 
+    def show_main():
+        win.showNormal(); win.raise_(); win.activateWindow()
+    def second_launch():
+        log.info("second launch: showing the running window")
+        show_main()
+    instance_server = single_instance.listen(second_launch, instance_name)      # a second launch lands here instead of a message box
+    if instance_server is None:
+        log.warning("single-instance channel unavailable: a second launch will only show a notice")
+
+    def open_folder(path):
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(path)))
+
+    def toggle_autostart(on):
+        try:
+            autostart.set_enabled(on)
+        except OSError as e:
+            log.warning("autostart toggle failed: %s", e)
+            QMessageBox.warning(None, "Race Engineer AI", f"Impossibile modificare l'avvio automatico: {e}")
+        act_auto.setChecked(autostart.is_enabled())
+
     menu = QMenu()
-    act_open = QAction("Apri Race Engineer AI"); act_open.triggered.connect(lambda: (win.showNormal(), win.activateWindow()))
+    act_ver = QAction(f"Race Engineer AI {__version__}"); act_ver.setEnabled(False)
+    act_open = QAction("Apri Race Engineer AI"); act_open.triggered.connect(lambda: show_main())
+    act_data = QAction("Apri cartella dati"); act_data.triggered.connect(lambda: open_folder(data_dir()))
+    act_logs = QAction("Apri cartella log"); act_logs.triggered.connect(lambda: open_folder(logdir))
+    act_upd = QAction("Scarica aggiornamenti (pagina delle release)…"); act_upd.triggered.connect(lambda: QDesktopServices.openUrl(QUrl(RELEASES_URL)))
+    act_auto = QAction("Avvia con Windows (ridotto a icona)"); act_auto.setCheckable(True); act_auto.setChecked(autostart.is_enabled())
+    act_auto.triggered.connect(toggle_autostart)
     act_disp = QAction("Apri Driving Display (secondo monitor)"); act_disp.triggered.connect(lambda: open_display())
     act_lan = QAction("Driving Display in rete (indirizzo LAN)…"); act_lan.triggered.connect(lambda: show_lan())
     act_quit = QAction("Esci"); act_quit.triggered.connect(lambda: do_quit())
-    menu.addAction(act_open); menu.addAction(act_disp); menu.addAction(act_lan); menu.addSeparator(); menu.addAction(act_quit)
+    menu.addAction(act_ver); menu.addSeparator()
+    menu.addAction(act_open); menu.addAction(act_disp); menu.addAction(act_lan); menu.addSeparator()
+    menu.addAction(act_data); menu.addAction(act_logs); menu.addAction(act_upd)
+    if autostart.supported():
+        menu.addAction(act_auto)
+    menu.addSeparator(); menu.addAction(act_quit)
     QShortcut(QKeySequence("Ctrl+D"), win, activated=lambda: open_display())
-    tray.setContextMenu(menu); tray.setToolTip("Race Engineer AI")
-    tray.activated.connect(lambda r: win.showNormal() if r == QSystemTrayIcon.ActivationReason.Trigger else None)
+    tray.setContextMenu(menu); tray.setToolTip(f"Race Engineer AI {__version__}")
+    tray.activated.connect(lambda r: show_main() if r == QSystemTrayIcon.ActivationReason.Trigger else None)
     if QSystemTrayIcon.isSystemTrayAvailable():
         tray.show()
 
     def do_quit():
         quitting["v"] = True
+        if not args.smoke:
+            settings.setValue("geometry", win.saveGeometry())
+        if instance_server is not None:
+            instance_server.close()
         tray.hide(); win.close()
         if display["win"] is not None:
             display["win"].close()
@@ -224,7 +273,7 @@ def run(argv=None) -> int:
 
     if not args.start_minimized and not args.smoke:
         win.show()
-    if args.display and not args.smoke:
+    if not args.smoke and (args.display or (args.display_auto and len(QGuiApplication.screens()) > 1)):
         open_display()
     if args.smoke:
         win.show()
