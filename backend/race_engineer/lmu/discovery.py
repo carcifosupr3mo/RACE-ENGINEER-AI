@@ -161,8 +161,12 @@ def is_lmu_process_running() -> bool | None:
     try:
         if sys.platform == "win32":  # pragma: no cover
             import subprocess
-            out = subprocess.run(["tasklist", "/FI", "IMAGENAME eq Le Mans Ultimate.exe", "/NH"],
-                                 capture_output=True, text=True, timeout=5).stdout.lower()
+            # Absolute System32 path: a bare "tasklist" is searched in the app folder / cwd first, where a planted exe would run.
+            exe = os.path.join(os.environ.get("SystemRoot", r"C:\Windows"), "System32", "tasklist.exe")
+            # CREATE_NO_WINDOW: the desktop app is windowed, so without it Windows opens a black console window for this
+            # console child at every probe. stdin=DEVNULL: a windowed exe has no valid stdin handle to inherit.
+            out = subprocess.run([exe, "/FI", "IMAGENAME eq Le Mans Ultimate.exe", "/NH"], capture_output=True, text=True,
+                                 timeout=5, stdin=subprocess.DEVNULL, creationflags=0x08000000).stdout.lower()
             return hint in out
         for p in Path("/proc").iterdir():
             if p.name.isdigit():

@@ -8,7 +8,7 @@ Vedi [ROADMAP.md](ROADMAP.md) e [docs/LMU-INTEGRATION.md](docs/LMU-INTEGRATION.m
 
 ## ⬇️ Download per Windows (pronto all'uso)
 
-**[Scarica RaceEngineerAI-win32.zip (portatile, 310 MB)](https://github.com/carcifosupr3mo/RACE-ENGINEER-AI/releases/download/v0.6.2-rc2/RaceEngineerAI-win32.zip)** — estrai, poi doppio clic su `AVVIA_CON_DISPLAY.bat`.
+**[Scarica RaceEngineerAI-win32.zip (portatile, 310 MB)](https://github.com/carcifosupr3mo/RACE-ENGINEER-AI/releases/download/v0.6.2-rc2/RaceEngineerAI-win32.zip)** — estrai, poi doppio clic su `RaceEngineerAI.exe` (nessuna finestra cmd; `Ctrl+D` apre il Driving Display). `AVVIA_CON_DISPLAY.bat` fa lo stesso con porta fissa 8765 ma, essendo un `.bat`, mostra per un attimo una finestra cmd.
 Alternativa: [installer](https://github.com/carcifosupr3mo/RACE-ENGINEER-AI/releases/download/v0.6.2-rc2/RaceEngineerAI-Setup-0.1.0.exe) · [tutte le release](https://github.com/carcifosupr3mo/RACE-ENGINEER-AI/releases) · hash in `SHA256SUMS.txt` della release.
 Build testata in CI su Windows con dati sintetici, **non ancora verificata con LMU reale**. Non firmata: SmartScreen può avvisare.
 (Il pulsante verde *Code → Download ZIP* scarica solo i sorgenti, senza exe.)

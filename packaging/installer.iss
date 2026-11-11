@@ -32,7 +32,7 @@ Source: "..\scripts\windows\*.ps1"; DestDir: "{app}"; Flags: ignoreversion
 [Icons]
 Name: "{group}\Race Engineer AI"; Filename: "{app}\RaceEngineerAI.exe"; Parameters: "--display"
 Name: "{group}\Verifica LMU reale"; Filename: "{app}\VERIFICA_LMU.bat"
-Name: "{group}\Avvia con Driving Display"; Filename: "{app}\AVVIA_CON_DISPLAY.bat"
+Name: "{group}\Avvia con Driving Display"; Filename: "{app}\RaceEngineerAI.exe"; Parameters: "--port 8765 --display"
 Name: "{autodesktop}\Race Engineer AI"; Filename: "{app}\RaceEngineerAI.exe"; Parameters: "--display"
 [Run]
 Filename: "{app}\RaceEngineerAI.exe"; Parameters: "--display"; Description: "Avvia Race Engineer AI"; Flags: nowait; Check: not WizardSilent

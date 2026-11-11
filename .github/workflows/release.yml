@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
     inputs:
       run_id: { description: "CI run id holding the RaceEngineerAI-windows artifact", required: true }
-      tag: { description: "Release tag", required: true, default: "v0.6.2-rc1" }
+      tag: { description: "Release tag", required: true, default: "v0.6.3-rc1" }
       commit: { description: "Commit the run was built from", required: true }
 permissions:
   contents: write
@@ -29,11 +29,11 @@ jobs:
           **Stato di verifica:** testata in CI su Windows con dati SINTETICI. NON ancora verificata con Le Mans Ultimate reale.
 
           - RaceEngineerAI-win32.zip: versione portatile, estrai e avvia AVVIA_CON_DISPLAY.bat
-          - RaceEngineerAI-Setup-0.1.0.exe: installer
+          - RaceEngineerAI-Setup-*.exe: installer
           - SHA256SUMS.txt
 
           Gli eseguibili non sono firmati: SmartScreen puo avvisare. Procedura di test: docs/UNIFIED_DRIVING_DISPLAY.md sezione 11.2.
           NOTES
           gh release create "${{ inputs.tag }}" --repo "${{ github.repository }}" --target "${{ inputs.commit }}" --prerelease \
             --title "${{ inputs.tag }} (Windows, test con LMU)" --notes-file notes.md \
-            RaceEngineerAI-win32.zip RaceEngineerAI-Setup-0.1.0.exe SHA256SUMS.txt
+            RaceEngineerAI-win32.zip RaceEngineerAI-Setup-*.exe SHA256SUMS.txt

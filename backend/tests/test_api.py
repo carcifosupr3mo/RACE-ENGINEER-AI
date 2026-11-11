@@ -74,3 +74,14 @@ def test_duckdb_inspect_is_restricted_to_telemetry_folder(live, catalog, tmp_pat
     assert ok.status_code == 200 and ok.json()["ok"] is True
     assert c.get("/api/duckdb/inspect", params={"path": "/etc/passwd"}).status_code == 404
     assert c.get("/api/duckdb/inspect", params={"path": str(game / "UserData" / "Telemetry" / ".." / ".." / "x.duckdb")}).status_code == 404
+
+
+def test_cross_site_origin_is_rejected_on_loopback(live, catalog):
+    """A web page open in the user's browser must not be able to drive the local API (CSRF): foreign Origin -> 403."""
+    game, e = live
+    c = client(e, catalog)
+    assert c.post("/api/ai/providers/test", headers={"Origin": "http://evil.example.com"}).status_code == 403
+    assert c.get("/api/status", headers={"Origin": "http://evil.example.com"}).status_code == 403
+    assert c.get("/api/status", headers={"Sec-Fetch-Site": "cross-site"}).status_code == 403
+    assert c.get("/api/status", headers={"Origin": "http://127.0.0.1:8765"}).status_code == 200
+    assert c.get("/api/status", headers={"Sec-Fetch-Site": "same-origin"}).status_code == 200

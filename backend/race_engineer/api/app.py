@@ -93,10 +93,20 @@ def create_app(engine: AcquisitionEngine, catalog: Catalog, *, lan_enabled: bool
             return secrets.compare_digest(supplied, token)
         return hostname in LOCAL_HOSTS
 
+    def cross_site(origin: str | None, fetch_site: str | None) -> bool:
+        """Loopback mode has no token, so a web page open in the user's browser could call the API (CSRF). Browsers label such
+        requests with a foreign Origin / Sec-Fetch-Site: cross-site; the app's own pages and non-browser clients do not."""
+        if lan_enabled:
+            return False                  # every call already needs the token, which a foreign page does not have
+        if origin and origin.split("//")[-1].rsplit(":", 1)[0] not in LOCAL_HOSTS:
+            return True
+        return (fetch_site or "").lower() == "cross-site"
+
     @app.middleware("http")
     async def guard(request: Request, call_next):
-        if request.url.path.startswith("/api") and not authorized(
-                request.headers.get("host"), request.headers.get("authorization"), request.query_params.get("token")):
+        if request.url.path.startswith("/api") and (not authorized(
+                request.headers.get("host"), request.headers.get("authorization"), request.query_params.get("token"))
+                or cross_site(request.headers.get("origin"), request.headers.get("sec-fetch-site"))):
             return JSONResponse({"detail": "forbidden"}, status_code=403)
         return await call_next(request)
 
@@ -121,8 +131,7 @@ def create_app(engine: AcquisitionEngine, catalog: Catalog, *, lan_enabled: bool
         if not authorized(ws.headers.get("host"), ws.headers.get("authorization"), ws.query_params.get("token")):
             await ws.close(code=4403)
             return
-        origin = ws.headers.get("origin")
-        if origin and not lan_enabled and (origin.split("//")[-1].rsplit(":", 1)[0] not in LOCAL_HOSTS):
+        if cross_site(ws.headers.get("origin"), None):
             await ws.close(code=4403)
             return
         await ws.accept()

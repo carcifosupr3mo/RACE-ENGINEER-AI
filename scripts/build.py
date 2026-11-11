@@ -8,6 +8,8 @@ import sys
 from pathlib import Path
 
 root = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(root / "backend"))
+from race_engineer import __version__  # noqa: E402  single source of the version (build_info.json, installer)
 
 
 def run(cmd, cwd=root):
@@ -39,7 +41,7 @@ def _commit():
         return None
 import json, time
 (out / "build_info.json").write_text(json.dumps({"commit": _commit(), "built_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-                                                  "version": "0.1.0"}), encoding="utf-8")
+                                                  "version": __version__}), encoding="utf-8")
 
 
 def secret_scan(folder: Path) -> list[str]:
@@ -81,8 +83,6 @@ def write_checksums():
 
 if "--installer" in sys.argv and sys.platform == "win32":
     import os
-    sys.path.insert(0, str(root / "backend"))
-    from race_engineer import __version__
     iscc = shutil.which("iscc") or r"C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
     subprocess.run([iscc, str(root / "packaging" / "installer.iss")], check=True, env={**os.environ, "RE_VERSION": __version__})
 write_checksums()

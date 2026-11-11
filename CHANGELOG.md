@@ -1,4 +1,10 @@
 # CHANGELOG
+## 0.6.3 (non rilasciata) — Finestra cmd all'avvio, sicurezza
+- **Finestra nera (cmd) all'avvio dell'exe: corretta.** Causa: per sapere se LMU è aperto l'app lancia `tasklist`; da un exe senza console Windows apriva una finestra cmd a ogni controllo (all'avvio e poi ogni 2 s finché LMU non è collegato). Ora il processo è avviato con `CREATE_NO_WINDOW`. Test di regressione (fallisce senza la correzione).
+- **Sicurezza:** `tasklist` è chiamato con percorso assoluto in `System32` (prima era cercato anche nella cartella dell'app / corrente, dove un exe estraneo con lo stesso nome sarebbe stato eseguito).
+- **Sicurezza:** in modalità locale (senza token) l'API rifiuta le richieste provenienti da un altro sito (`Origin` estraneo o `Sec-Fetch-Site: cross-site`): una pagina web aperta nel browser non può più pilotare l'app. Test di regressione.
+- **Installer:** la versione era rimasta `0.1.0`, quindi un installer nuovo vedeva «stessa versione già installata» e riavviava la copia vecchia senza aggiornarla. Versione portata a 0.6.3 (unica fonte: `race_engineer.__version__`, usata anche da `build_info.json`).
+- Collegamento del menu Start «Avvia con Driving Display»: ora avvia direttamente l'exe (porta 8765) invece del `.bat`, quindi senza finestra cmd.
 ## 0.6.2 (non rilasciata) — Verifica pre-test reale
 - **Run 17 (`193f0ce`, solo documentazione) fallita** nel job `display-e2e` con codice identico alla run 16 verde: l'e2e cercava un consiglio la cui finestra (errore su 3 giri) dipendeva dalla velocità della macchina. Il test era non deterministico; nuovo scenario sintetico `persistent` (errore su tutti i giri) usato da CI/e2e. Nessun cambiamento al comportamento del coach per questo.
 - **Difetto reale corretto (audit unità/valori mancanti):** un buco di telemetria ≤ 50 m (NaN) sul gas dopo l'apice veniva letto come «gas chiuso» → falso `delayed_acceleration` con confidenza «alta». Ora metrica non misurabile se mancano campioni (gas prima della ripresa, freno nella finestra di frenata). Test di regressione (fallisce senza la correzione).
