@@ -2,10 +2,15 @@
 
 Produces dist/RaceEngineerAI/ and dist/RaceEngineerAI-<platform>.zip. A Windows .exe can ONLY be produced by running this on Windows.
 """
+import os
 import shutil
 import subprocess
 import sys
 from pathlib import Path
+
+import sign_windows
+
+SIGN = sign_windows.take_credentials()      # out of os.environ from here on: npm, pip, tests and the smoke run never see the certificate
 
 root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(root / "backend"))
@@ -25,14 +30,14 @@ if "--skip-tests" not in sys.argv:
     run([sys.executable, "-m", "pytest", "tests"], root / "backend")
 run([sys.executable, "-m", "PyInstaller", "packaging/race_engineer.spec", "--noconfirm", "--distpath", "dist", "--workpath", "build"])
 out = root / "dist" / "RaceEngineerAI"
+signed = sign_windows.sign([e for e in (out / "RaceEngineerAI.exe", out / "race-engineer-cli.exe") if e.exists()], SIGN)   # before smoke/zip/installer: what is tested is what ships
 for bat in [*(root / "scripts" / "windows").glob("*.bat"), *(root / "scripts" / "windows").glob("*.ps1"), *(root / "scripts" / "windows").glob("hud_annotazioni_*.json")]:          # verification tools next to the exe (used on the Windows PC)
     shutil.copy2(bat, out / bat.name)
 (out / "docs").mkdir(exist_ok=True)
-for d in ("README.md", "docs/VALIDATION.md", "docs/INSTALLATION.md", "docs/AI-PROVIDERS.md", "docs/LMU-INTEGRATION.md", "docs/WINDOWS-PROCEDURA.md"):
+for d in ("README.md", "docs/VALIDATION.md", "docs/INSTALLATION.md", "docs/AI-PROVIDERS.md", "docs/LMU-INTEGRATION.md", "docs/WINDOWS-PROCEDURA.md", "docs/CODE-SIGNING.md"):
     shutil.copy2(root / d, out / "docs" / Path(d).name)
 shutil.copy2(root / "packaging" / "icon.ico", out / "icon.ico")
 def _commit():
-    import os
     if os.environ.get("GITHUB_SHA"):
         return os.environ["GITHUB_SHA"]
     try:
@@ -41,7 +46,7 @@ def _commit():
         return None
 import json, time
 (out / "build_info.json").write_text(json.dumps({"commit": _commit(), "built_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-                                                  "version": __version__}), encoding="utf-8")
+                                                  "version": __version__, "signed": signed}), encoding="utf-8")
 
 
 def secret_scan(folder: Path) -> list[str]:
@@ -82,7 +87,17 @@ def write_checksums():
 
 
 if "--installer" in sys.argv and sys.platform == "win32":
-    import os
     iscc = shutil.which("iscc") or r"C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
-    subprocess.run([iscc, str(root / "packaging" / "installer.iss")], check=True, env={**os.environ, "RE_VERSION": __version__})
+    cmd = [iscc]
+    if signed:                              # Inno Setup signs the installer AND the uninstaller it embeds, through the same script ($q = quote, $f = file)
+        cmd += ["/DSIGN", f"/Sresign=$q{sys.executable}$q $q{root / 'scripts' / 'sign_windows.py'}$q $f"]
+    subprocess.run([*cmd, str(root / "packaging" / "installer.iss")], check=True, env={**os.environ, **SIGN, "RE_VERSION": __version__})
+    if signed:
+        for setup in (root / "dist").glob("RaceEngineerAI-Setup-*.exe"):
+            status, subject = sign_windows.signature_status(str(setup))
+            if status in ("NotSigned", "HashMismatch", "Unknown"):
+                raise SystemExit(f"{setup.name}: installer is not signed (status {status})")
+            print(f"signing: OK {setup.name}: status {status}, signer {subject}")
+(root / "dist" / "SIGNING.txt").write_text("Eseguibili FIRMATI digitalmente (Authenticode).\n" if signed else
+                                           "Eseguibili NON firmati: Windows SmartScreen puo mostrare un avviso. Verifica l'hash in SHA256SUMS.txt.\n", encoding="utf-8")
 write_checksums()

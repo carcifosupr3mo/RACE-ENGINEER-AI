@@ -1,4 +1,11 @@
 # CHANGELOG
+## 0.6.4 (non rilasciata) — Firma digitale pronta, aggiornamento con l'app aperta
+- **Firma digitale (Authenticode): pipeline pronta, manca solo il certificato.** `scripts/sign_windows.py` firma exe, installer e disinstallatore con marca temporale e controlla ogni firma; la build fallisce se una firma richiesta non risulta. Senza certificato la build resta **non firmata e lo dichiara** (log, `SIGNING.txt`, `build_info.json`, note della release). Il certificato arriva dai segreti di GitHub Actions e viene tolto dall'ambiente prima di npm/pip/test. Istruzioni e opzioni: `docs/CODE-SIGNING.md`.
+- CI: prova della pipeline di firma su Windows con un certificato usa e getta, solo su copie (`scripts/test_signing_windows.py`).
+- **Aggiornamento e disinstallazione con l'app aperta.** Chiudere la finestra la nasconde solo nella barra di sistema, quindi l'installer trovava i file in uso. Ora installer e disinstallatore chiedono alla copia in esecuzione di chiudersi in modo pulito (`RaceEngineerAI.exe --quit`: registrazione chiusa, dati salvati) e solo come riserva la terminano.
+- **Difetto di CI corretto:** lo smoke test della copia *installata* non poteva far fallire la build (il suo codice di uscita veniva sovrascritto dal comando successivo). Nuovo `scripts/windows/tests/Test-Installer.ps1`: installazione, smoke, uscita pulita, aggiornamento e disinstallazione con l'app aperta, ognuno con esito verificato.
+- Gli exe dichiarano prodotto e versione (Proprietà → Dettagli); l'installer dichiara autore, versione e indirizzi di supporto.
+- Log dell'app: riga «started» con versione e porta.
 ## 0.6.3 (non rilasciata) — Finestra cmd all'avvio, sicurezza
 - **Finestra nera (cmd) all'avvio dell'exe: corretta.** Causa: per sapere se LMU è aperto l'app lancia `tasklist`; da un exe senza console Windows apriva una finestra cmd a ogni controllo (all'avvio e poi ogni 2 s finché LMU non è collegato). Ora il processo è avviato con `CREATE_NO_WINDOW`. Test di regressione (fallisce senza la correzione).
 - **Sicurezza:** `tasklist` è chiamato con percorso assoluto in `System32` (prima era cercato anche nella cartella dell'app / corrente, dove un exe estraneo con lo stesso nome sarebbe stato eseguito).

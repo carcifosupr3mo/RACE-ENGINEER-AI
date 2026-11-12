@@ -54,23 +54,39 @@ def test_autostart_not_offered_when_running_from_source(monkeypatch):
     assert autostart.supported() is False and autostart.set_enabled(True) is False
 
 
-def test_second_launch_asks_the_running_copy_to_show_its_window():
-    pytest.importorskip("PySide6")
-    import os
+def _other_launch(call: str, name: str):
+    """A REAL second process, as on the user's PC (the client blocks until the running copy hangs up)."""
+    import subprocess
+    code = ("from PySide6.QtCore import QCoreApplication; from race_engineer.desktop import single_instance as si; "
+            f"app = QCoreApplication([]); print(si.{call}({name!r}, 5000))")
+    return subprocess.Popen([sys.executable, "-c", code], stdout=subprocess.PIPE, text=True)
+
+
+def _serve_until(proc, seen):
     import time
     from PySide6.QtCore import QCoreApplication
-    from race_engineer.desktop import single_instance
     app = QCoreApplication.instance() or QCoreApplication([])
-    name = f"race_engineer_ai_test_{os.getpid()}"
-    assert single_instance.notify_running(name, 200) is False                      # nobody running
-    shown = []
-    srv = single_instance.listen(lambda: shown.append(1), name)
+    t0 = time.time()
+    while (proc.poll() is None or not seen) and time.time() - t0 < 30:
+        app.processEvents()
+    return proc.communicate(timeout=10)[0].strip()
+
+
+@pytest.mark.parametrize("call, expected", [("notify_running", "show"), ("request_quit", "quit")])
+def test_another_launch_reaches_the_running_copy(call, expected):
+    """Second double-click -> the running copy shows its window; installer's --quit -> it shuts down. Never mixed up."""
+    pytest.importorskip("PySide6")
+    import os
+    from PySide6.QtCore import QCoreApplication
+    from race_engineer.desktop import single_instance
+    QCoreApplication.instance() or QCoreApplication([])
+    name = f"race_engineer_ai_test_{call}_{os.getpid()}"
+    assert getattr(single_instance, call)(name, 200) is False                      # nobody running
+    seen = []
+    srv = single_instance.listen(lambda: seen.append("show"), name, on_quit=lambda: seen.append("quit"))
     assert srv is not None
     try:
-        assert single_instance.notify_running(name) is True
-        t0 = time.time()
-        while not shown and time.time() - t0 < 5:
-            app.processEvents()
-        assert shown == [1]
+        assert _serve_until(_other_launch(call, name), seen) == "True"
+        assert seen == [expected]
     finally:
         srv.close()

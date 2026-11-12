@@ -25,7 +25,7 @@ Get-FileHash .\RaceEngineerAI-Setup-0.6.3.exe -Algorithm SHA256
 5. Procedura completa di validazione: [docs/UNIFIED_DRIVING_DISPLAY.md](docs/UNIFIED_DRIVING_DISPLAY.md) §11.2. Altri script nella cartella: `VERIFICA_LMU.bat`, `PROCEDURA_VERIFICA.bat`, `DIAGNOSI_COMPLETA.bat`, `TEST_AI.bat`.
 
 Da riga di comando (stessa cartella): `RaceEngineerAI.exe --port 8765 --display` (aggiungi `--lan` solo per usare il Display da un altro dispositivo in rete).
-Il programma non è firmato digitalmente: se Windows mostra un avviso non disattivare le protezioni, verifica prima l'hash.
+Firma digitale: la build è predisposta per firmare gli eseguibili, ma serve un certificato del titolare ([docs/CODE-SIGNING.md](docs/CODE-SIGNING.md)); il file `SIGNING.txt` della release dice se quella build è firmata. Se non lo è e Windows mostra un avviso, non disattivare le protezioni: verifica prima l'hash.
 
 ## Avvio rapido da sorgente (sviluppo)
 ```bash

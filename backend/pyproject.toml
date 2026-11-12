@@ -1,6 +1,6 @@
 [project]
 name = "race-engineer-ai"
-version = "0.6.3"
+version = "0.6.4"
 description = "Virtual race engineer for Le Mans Ultimate"
 requires-python = ">=3.11"
 dependencies = ["fastapi>=0.110", "uvicorn[standard]>=0.29", "pydantic>=2", "duckdb>=1.0", "numpy>=1.26", "scipy>=1.11", "httpx>=0.27", "keyring>=25"]

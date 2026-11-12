@@ -95,6 +95,7 @@ def run(argv=None) -> int:
     ap.add_argument("--port", type=int, default=0, help="fixed port (default: a free one); needed by VERIFICA_DISPLAY.bat / live-check")
     ap.add_argument("--display", action="store_true", help="open the Driving Display on the second monitor at start")
     ap.add_argument("--display-auto", action="store_true", help="open the Driving Display at start only if a second monitor is connected")
+    ap.add_argument("--quit", action="store_true", help="ask the running copy to shut down cleanly, wait for it, exit (used by the installer)")
     args = ap.parse_args(argv)
     if args.smoke:
         os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -126,6 +127,11 @@ def run(argv=None) -> int:
     lock = QLockFile(QDir.temp().filePath("race_engineer_ai_%s.lock" % ("smoke" if args.smoke else "app")))
     lock.setStaleLockTime(15000)
     instance_name = single_instance.NAME + ("_smoke" if args.smoke else "")
+    if args.quit:                         # installer / uninstaller: stop the running copy so no file is in use and the recording is closed
+        single_instance.request_quit(instance_name)
+        stopped = lock.tryLock(20000)     # the lock is released when the running copy has finished its controlled shutdown
+        log.info("--quit: running copy %s", "stopped (or none was running)" if stopped else "did NOT stop within 20 s")
+        return 0 if stopped else 1
     if not lock.tryLock(100):             # a second instance would fight over the shared memory reader and data files
         if args.smoke:
             return 3
@@ -200,7 +206,10 @@ def run(argv=None) -> int:
     def second_launch():
         log.info("second launch: showing the running window")
         show_main()
-    instance_server = single_instance.listen(second_launch, instance_name)      # a second launch lands here instead of a message box
+    def quit_requested():
+        log.info("quit requested by another launch (installer/uninstaller)")
+        QTimer.singleShot(0, do_quit)
+    instance_server = single_instance.listen(second_launch, instance_name, on_quit=quit_requested)      # a second launch lands here instead of a message box
     if instance_server is None:
         log.warning("single-instance channel unavailable: a second launch will only show a notice")
 
@@ -271,6 +280,7 @@ def run(argv=None) -> int:
             last["s"] = st
     timer = QTimer(); timer.timeout.connect(watch); timer.start(1000)
 
+    log.info("started: version %s, port %s, lan %s", __version__, backend.port, backend.lan)
     if not args.start_minimized and not args.smoke:
         win.show()
     if not args.smoke and (args.display or (args.display_auto and len(QGuiApplication.screens()) > 1)):
