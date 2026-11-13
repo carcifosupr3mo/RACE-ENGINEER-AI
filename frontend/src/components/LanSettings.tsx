@@ -2,12 +2,18 @@ import { useEffect, useState } from 'react'
 import { api } from '../lib/api'
 
 /** ON/OFF for showing the Driving Display on another PC/tablet on the same network. No command line needed. */
+const WHY: Record<string, string> = {
+  no_token_or_bad_token: 'codice di accesso mancante o sbagliato',
+  lan_off: 'la rete era spenta',
+  host_not_local: 'indirizzo non consentito senza codice',
+}
+
 export default function LanSettings() {
   const [lan, setLan] = useState<any>(null)
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
   const load = () => api('/api/lan').then(setLan).catch(e => setMsg(e.message))
-  useEffect(() => { load() }, [])
+  useEffect(() => { load(); const t = setInterval(load, 4000); return () => clearInterval(t) }, [])
   const set = async (enabled: boolean) => {
     setBusy(true); setMsg('')
     try {
@@ -37,6 +43,9 @@ export default function LanSettings() {
         <p className="mut">Apri uno di questi indirizzi dal browser dell'altro schermo/PC. L'indirizzo contiene il token: tienilo privato.</p>
         <p className="mut">{lan.firewall_hint}</p>
       </>}
+      {on && lan.denied?.length > 0 && <div data-testid="lan-denied"><h3>Ultimi accessi rifiutati</h3>
+        {[...lan.denied].reverse().map((d: any, i: number) => <div className="row" key={i}><span>{new Date(d.t * 1000).toLocaleTimeString()} · da {d.client ?? '?'} · indirizzo usato {d.host ?? '?'}</span><span className="warn">{WHY[d.reason] ?? d.reason}</span></div>)}
+        <p className="mut">Se vedi qui un rifiuto con «codice mancante o sbagliato», l'indirizzo aperto sull'altro dispositivo non è quello completo mostrato sopra.</p></div>}
       {msg && <p className="warn">{msg}</p>}
     </section>)
 }

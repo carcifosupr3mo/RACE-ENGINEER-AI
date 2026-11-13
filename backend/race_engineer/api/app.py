@@ -7,6 +7,7 @@ import dataclasses
 import numpy as np
 import logging
 import secrets
+import time
 import sys
 from pathlib import Path
 
@@ -78,12 +79,12 @@ def create_app(engine: AcquisitionEngine, catalog: Catalog, *, lan_enabled: bool
     * LAN mode (explicit opt-in): every /api and /ws call requires the bearer token.
     """
     app = FastAPI(title="Race Engineer AI", version=__version__)
-    token = token or secrets.token_urlsafe(24)
+    token = (token or secrets.token_hex(12)).lower()      # lowercase hex: survives chat apps (no _ - formatting) and phone auto-capitalisation
     app.state.token = token
     app.state.install = install
     # LAN access can be switched on/off at runtime by the desktop shell (a second listener on all interfaces, see desktop/main.py).
     # lan_state["on"]: LAN is open; the CLI flag --lan (lan_enabled) keeps its old meaning: token required for everybody.
-    lan_state = app.state.lan = {"on": bool(lan_enabled), "port": None, "control": None, "error": None}
+    lan_state = app.state.lan = {"on": bool(lan_enabled), "port": None, "control": None, "error": None, "denied": []}
     LOOPBACK_CLIENTS = {"127.0.0.1", "::1", "localhost", "testclient", None}
 
     def remote_client(client) -> bool:
@@ -96,20 +97,36 @@ def create_app(engine: AcquisitionEngine, catalog: Catalog, *, lan_enabled: bool
             app.state.install = find_install()
         return app.state.install
 
-    def authorized(host: str | None, auth: str | None, query_token: str | None, client=None) -> bool:
-        hostname = (host or "").rsplit(":", 1)[0] if not (host or "").startswith("[") else (host or "").split("]")[0] + "]"
-        if lan_enabled or remote_client(client):
-            if remote_client(client) and not lan_state["on"]:
-                return False                  # a remote PC can only get in while the owner has switched LAN access on
-            supplied = (auth or "").removeprefix("Bearer ").strip() or (query_token or "")
-            return secrets.compare_digest(supplied, token)
-        return hostname in LOCAL_HOSTS
+    def token_ok(auth: str | None, query_token: str | None) -> bool:
+        supplied = ((auth or "").removeprefix("Bearer ").strip() or (query_token or "")).lower()
+        try:
+            return bool(supplied) and secrets.compare_digest(supplied, token)
+        except TypeError:                         # non-ASCII garbage
+            return False
 
-    def cross_site(origin: str | None, fetch_site: str | None, client=None) -> bool:
+    def deny(reason: str, client, host: str | None) -> bool:
+        d = lan_state["denied"]
+        d.append({"t": time.time(), "reason": reason, "client": client.host if client else None, "host": host})
+        del d[:-5]
+        log.info("access refused: %s (client %s, host %s)", reason, client.host if client else None, host)
+        return False
+
+    def authorized(host: str | None, auth: str | None, query_token: str | None, client=None) -> bool:
+        """A valid token is accepted whatever the source address shows (a firewall/antivirus/VPN on the PC can make LAN connections
+        look local); without a token only this PC (loopback address AND a loopback Host) is accepted, and never in LAN-only CLI mode."""
+        hostname = (host or "").rsplit(":", 1)[0] if not (host or "").startswith("[") else (host or "").split("]")[0] + "]"
+        has_token = token_ok(auth, query_token)
+        if has_token and (lan_state["on"] or lan_enabled):
+            return True
+        if lan_enabled or remote_client(client):
+            return deny("lan_off" if has_token else "no_token_or_bad_token", client, host)
+        return hostname in LOCAL_HOSTS or deny("host_not_local", client, host)
+
+    def cross_site(origin: str | None, fetch_site: str | None, client=None, by_token: bool = False) -> bool:
         """Loopback mode has no token, so a web page open in the user's browser could call the API (CSRF). Browsers label such
         requests with a foreign Origin / Sec-Fetch-Site: cross-site; the app's own pages and non-browser clients do not."""
-        if lan_enabled or remote_client(client):
-            return False                  # every call already needs the token, which a foreign page does not have
+        if lan_enabled or remote_client(client) or by_token:
+            return False                  # the call carries the token, which a foreign page does not have
         if origin and origin.split("//")[-1].rsplit(":", 1)[0] not in LOCAL_HOSTS:
             return True
         return (fetch_site or "").lower() == "cross-site"
@@ -118,7 +135,8 @@ def create_app(engine: AcquisitionEngine, catalog: Catalog, *, lan_enabled: bool
     async def guard(request: Request, call_next):
         if request.url.path.startswith("/api") and (not authorized(
                 request.headers.get("host"), request.headers.get("authorization"), request.query_params.get("token"), request.client)
-                or cross_site(request.headers.get("origin"), request.headers.get("sec-fetch-site"), request.client)):
+                or cross_site(request.headers.get("origin"), request.headers.get("sec-fetch-site"), request.client,
+                              token_ok(request.headers.get("authorization"), request.query_params.get("token")))):
             return JSONResponse({"detail": "forbidden"}, status_code=403)
         return await call_next(request)
 
@@ -143,7 +161,7 @@ def create_app(engine: AcquisitionEngine, catalog: Catalog, *, lan_enabled: bool
         if not authorized(ws.headers.get("host"), ws.headers.get("authorization"), ws.query_params.get("token"), ws.client):
             await ws.close(code=4403)
             return
-        if cross_site(ws.headers.get("origin"), None, ws.client):
+        if cross_site(ws.headers.get("origin"), None, ws.client, token_ok(ws.headers.get("authorization"), ws.query_params.get("token"))):
             await ws.close(code=4403)
             return
         await ws.accept()
@@ -484,7 +502,7 @@ def create_app(engine: AcquisitionEngine, catalog: Catalog, *, lan_enabled: bool
         on = lan_state["on"]
         urls = [f"http://{ip}:{port}/driving-display?token={token}" for ip in _lan_ips()] if on and port else []
         return {"available": lan_state["control"] is not None, "enabled": on, "port": port, "token": token if on else None,
-                "urls": urls, "error": lan_state["error"],
+                "urls": urls, "error": lan_state["error"], "denied": lan_state["denied"],
                 "firewall_hint": "La prima volta Windows chiede se consentire l'accesso alla rete privata: scegli «Consenti». "
                                  "Gli altri PC devono essere sulla stessa rete (Wi-Fi/cavo di casa o del box)."}
 
@@ -494,7 +512,7 @@ def create_app(engine: AcquisitionEngine, catalog: Catalog, *, lan_enabled: bool
 
     @app.put("/api/lan")
     def lan_put(body: dict, request: Request):
-        if remote_client(request.client):
+        if remote_client(request.client) or (request.headers.get("host") or "").rsplit(":", 1)[0] not in LOCAL_HOSTS:
             raise HTTPException(403, "solo questo PC può attivare o disattivare l'accesso di rete")
         ctl = lan_state["control"]
         if ctl is None:

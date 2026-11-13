@@ -49,7 +49,7 @@ class Backend:
         self.lan = lan
         self._lan_file = root / "lan.json"
         self._lan_cfg = self._load_lan_cfg()
-        app = create_app(self.engine, self.catalog, lan_enabled=lan, token=self._lan_cfg.get("token"),
+        app = create_app(self.engine, self.catalog, lan_enabled=lan, token=self._saved_token(),
                          install=None if synthetic else find_install())
         self.app, self.token = app, app.state.token
         self._lan_server = None
@@ -74,6 +74,11 @@ class Backend:
             return d if isinstance(d, dict) else {}
         except (OSError, ValueError):
             return {}
+
+    def _saved_token(self) -> str | None:
+        import re
+        t = self._lan_cfg.get("token")
+        return t if isinstance(t, str) and re.fullmatch(r"[0-9a-f]{24}", t) else None     # older tokens (with - and _) are replaced
 
     def _save_lan_cfg(self) -> None:
         self._lan_cfg.update(token=self.token, enabled=bool(self._lan_server))

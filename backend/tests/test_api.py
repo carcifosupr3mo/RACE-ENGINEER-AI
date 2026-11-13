@@ -117,3 +117,24 @@ def test_lan_switch_unavailable_without_desktop_shell(live, catalog):
     c = client(e, catalog)
     assert c.get("/api/lan").json()["available"] is False
     assert c.put("/api/lan", json={"enabled": True}).status_code == 409
+
+
+def test_valid_token_is_accepted_even_if_the_connection_looks_local(live, catalog):
+    """A firewall/antivirus/VPN on the PC can relay LAN connections through 127.0.0.1: the token, not the source address, decides."""
+    _, e = live
+    app = create_app(e, catalog, token="ab12cd34ef56ab12cd34ef56", install=LmuInstall())
+    state = app.state.lan
+    state["control"] = lambda on: state.update(on=on, port=47653 if on else None)
+    relayed = TestClient(app, base_url="http://192.168.1.177:47653", client=("127.0.0.1", 50000))
+    assert relayed.get("/api/health").status_code == 403                                   # LAN off, foreign Host
+    state["on"] = True
+    assert relayed.get("/api/health").status_code == 403                                   # no token
+    assert relayed.get("/api/health?token=wrongwrong").status_code == 403
+    assert relayed.get("/api/health?token=AB12CD34EF56AB12CD34EF56").status_code == 200   # right token, any capitalisation
+    with relayed.websocket_connect("/ws/live?token=ab12cd34ef56ab12cd34ef56") as ws:
+        assert ws.receive_json()["status"]["state"]
+    assert relayed.put("/api/lan?token=ab12cd34ef56ab12cd34ef56", json={"enabled": False}).status_code == 403   # not from a foreign Host
+    state["on"] = False
+    assert relayed.get("/api/health?token=ab12cd34ef56ab12cd34ef56").status_code == 403    # switched off again
+    info = TestClient(app, base_url="http://127.0.0.1").get("/api/lan").json()
+    assert info["denied"] and {"reason", "client", "host"} <= set(info["denied"][-1])        # the owner can see why it was refused
