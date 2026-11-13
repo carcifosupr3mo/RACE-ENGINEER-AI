@@ -66,6 +66,12 @@ def _lan_ips() -> list[str]:
 
 
 log = logging.getLogger("race_engineer.api")
+
+
+def redact_text(t: str) -> str:
+    """No file-system paths or user names in messages shown in the UI."""
+    import re
+    return re.sub(r"([A-Za-z]:)?[\\/][\w .\-\\/]{6,}", "<percorso>", t)
 STATIC = Path(__file__).parent / "static"
 LOCAL_HOSTS = {"127.0.0.1", "localhost", "[::1]", "::1"}
 
@@ -130,6 +136,13 @@ def create_app(engine: AcquisitionEngine, catalog: Catalog, *, lan_enabled: bool
         if origin and origin.split("//")[-1].rsplit(":", 1)[0] not in LOCAL_HOSTS:
             return True
         return (fetch_site or "").lower() == "cross-site"
+
+    @app.exception_handler(Exception)
+    async def unexpected(request: Request, exc: Exception):
+        """Never a bare "Internal Server Error": say which call failed and why (full traceback goes to the app log)."""
+        log.exception("unexpected error in %s %s", request.method, request.url.path)
+        msg = redact_text(f"{type(exc).__name__}: {exc}")[:300]
+        return JSONResponse({"detail": f"Errore interno in {request.url.path} — {msg}. Il dettaglio è nel file di log dell'app (menu dell'icona → Log)."}, status_code=500)
 
     @app.middleware("http")
     async def guard(request: Request, call_next):

@@ -1,4 +1,8 @@
 # CHANGELOG
+## 0.6.7 (non rilasciata) — Display da telefono con codice, errori leggibili, giro ideale
+- **Display da telefono/altro PC:** l'accesso ora lo decide il codice (`?token=…`), non l'indirizzo di provenienza: anche se la connessione arriva «inoltrata» (antivirus, VPN, router) il codice valido basta. Il codice è fatto solo di cifre/lettere minuscole (niente caratteri confondibili), resta lo stesso fra un avvio e l'altro, e in Impostazioni → Display in rete trovi il pulsante «Copia» con l'indirizzo completo e la lista degli «Ultimi accessi rifiutati» con il motivo.
+- **Errori leggibili:** niente più «Internal Server Error» nudo: l'app dice quale funzione ha fallito e perché (senza percorsi del tuo PC); il dettaglio completo è nel log.
+- **Report sessione:** il giro ideale ora si calcola anche se una zona non ha un tempo valido su nessun giro (es. giri che si fermano poco prima del traguardo).
 ## 0.6.6 (non rilasciata) — Analisi circuito con mappa a colori, testi più chiari, display da telefono
 - **Analisi circuito:** la pista è disegnata con ogni zona colorata in base al tempo che perdi (verde = costante, rosso = lì perdi di più), le zone dove perdi più tempo e le tue curve migliori in frasi semplici, e una tabella zona per zona. La mappa dei nomi delle curve è ora facoltativa e ripiegata.
 - **Tutto più leggibile:** menu e titoli in italiano («Analisi giri», «Gomme e benzina»…), una riga che spiega cosa fa ogni pagina, testo più grande.

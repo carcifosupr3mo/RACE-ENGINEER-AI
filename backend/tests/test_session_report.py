@@ -81,3 +81,26 @@ def test_first_zone_at_the_start_line_is_not_dropped(tmp_path):
     _, _, sd, ls, al, cs = build(tmp_path, "constant", 4)
     rep = build_report(al, {l.number: l.time_s for l in ls if l.number in al}, cs, sd.track_length_m, True)
     assert rep["zones"][0]["start_m"] == 0 and len(rep["zones"]) == len(build_zones(cs, sd.track_length_m))
+
+
+def test_ideal_lap_survives_a_zone_without_any_usable_time(tmp_path):
+    """Real Monza data: laps stop a little short of the line, so the last zone has no time on any lap. The ideal lap must still be computed."""
+    import numpy as np
+    _, _, sd, ls, al, cs = build(tmp_path, "mixed", 5)
+    for a in al.values():
+        a.t[-400:] = np.nan
+    rep = build_report(al, {l.number: l.time_s for l in ls if l.number in al}, cs, sd.track_length_m, True)
+    assert rep["ideal_time_s"] is not None and rep["ideal_gain_s"] >= 0
+    assert len(rep["zones"]) < len(build_zones(cs, sd.track_length_m))
+
+
+def test_internal_errors_are_readable_and_hide_paths(tmp_path, monkeypatch):
+    import race_engineer.api.app as appmod
+    cat, e = record(tmp_path, "constant", 3)
+    sid = cat.list_sessions()[0]["id"]
+    app = create_app(e, cat, install=LmuInstall())
+    monkeypatch.setattr(appmod, "align_lap", lambda *a, **k: (_ for _ in ()).throw(ValueError("boom C:\\Users\\pippo\\secret\\file.duckdb")))
+    r = TestClient(app, base_url="http://127.0.0.1", raise_server_exceptions=False).get(f"/api/sessions/{sid}/compare?lap=2&ref=1")
+    assert r.status_code == 500
+    d = r.json()["detail"]
+    assert "/compare" in d and "ValueError" in d and "pippo" not in d and "Internal Server Error" not in d

@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
     inputs:
       run_id: { description: "CI run id holding the RaceEngineerAI-windows artifact", required: true }
-      tag: { description: "Release tag", required: true, default: "v0.6.6-rc1" }
+      tag: { description: "Release tag", required: true, default: "v0.6.7-rc1" }
       commit: { description: "Commit the run was built from", required: true }
 permissions:
   contents: write

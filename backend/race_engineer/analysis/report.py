@@ -81,7 +81,7 @@ def build_report(aligned: dict[int, AlignedLap], lap_times: dict[int, float], co
                "zones": [None if zt[n][z["index"]] is None else round(zt[n][z["index"]] - z["best_s"], 3) for z in out_zones]}
         laps_out.append(row)
     best_s = lap_times[best_lap] if best_lap is not None else None
-    complete = best_lap is not None and len(out_zones) == len(zones)
+    complete = best_lap is not None          # zones with no usable time on any lap are simply left out (e.g. a lap that stops short of the line)
     gain = None
     ideal = None
     if complete and len(nums) >= 2:
