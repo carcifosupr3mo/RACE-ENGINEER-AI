@@ -5,7 +5,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from .laps import Lap, SessionData
+from .laps import Lap, SessionData, unwrap_lap_distance
 
 CHANNELS = ["speed_kmh", "throttle", "brake", "steering", "rpm", "gear", "pos_x_m", "pos_z_m"]
 
@@ -22,7 +22,7 @@ class AlignedLap:
 def align_lap(d: SessionData, lap: Lap, step_m: float = 1.0, max_gap_m: float = 50.0) -> AlignedLap:
     c, L = d.cols, d.track_length_m
     sl = slice(lap.i0, lap.i1)
-    dist = c["lap_dist_m"][sl].copy()
+    dist = unwrap_lap_distance(c["lap_dist_m"][sl], L)       # counter/distance race at the start line (see laps.unwrap_lap_distance)
     tm = c["session_time_s"][sl] - c["session_time_s"][lap.i0]
     # enforce monotonic distance: drop samples that go backwards (jitter / wrap at the line)
     keep = np.ones(len(dist), bool)

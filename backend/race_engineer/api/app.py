@@ -5,6 +5,7 @@ import asyncio
 import dataclasses
 
 import numpy as np
+import logging
 import secrets
 import sys
 from pathlib import Path
@@ -62,6 +63,7 @@ def _lan_ips() -> list[str]:
     return [ip for ip in dict.fromkeys(found) if not ip.startswith(("127.", "169.254.", "0."))]
 
 
+log = logging.getLogger("race_engineer.api")
 STATIC = Path(__file__).parent / "static"
 LOCAL_HOSTS = {"127.0.0.1", "localhost", "[::1]", "::1"}
 
@@ -219,10 +221,19 @@ def create_app(engine: AcquisitionEngine, catalog: Catalog, *, lan_enabled: bool
             raise HTTPException(422, "reference lap is not a valid lap")
         return pick
 
+    def _aligned(sd, lap):
+        """align_lap + a quality gate with a message a person can act on (the raw numbers go to the log)."""
+        a = align_lap(sd, lap)
+        if not a.quality["ok"]:
+            log.warning("lap %s not usable for analysis: %s", lap.number, a.quality)
+            raise HTTPException(422, f"Il giro {lap.number} non ha dati di posizione sufficienti per l'analisi "
+                                     f"(copertura {a.quality['coverage']:.0%} del circuito). Scegli un altro giro.")
+        return a
+
     @app.get("/api/sessions/{sid}/corners")
     def corners(sid: str, ref: int | None = None):
         row, sd, ls = _session(sid)
-        al = align_lap(sd, _ref(sd, ls, ref))
+        al = _aligned(sd, _ref(sd, ls, ref))
         prof = catalog.get_track_profile(row["track"] or "")
         return clean({"provisional": prof is None, "ref_lap": al.number, "corners": [c.to_json() for c in apply_profile(detect_corners(al), prof)]})
 
@@ -249,9 +260,7 @@ def create_app(engine: AcquisitionEngine, catalog: Catalog, *, lan_enabled: bool
         target = next((l for l in ls if l.number == lap), None)
         if target is None or not target.valid_for_analysis:
             raise HTTPException(422, "lap is not a valid lap")
-        ra, la = align_lap(sd, rl), align_lap(sd, target)
-        if not (ra.quality["ok"] and la.quality["ok"]):
-            raise HTTPException(422, {"error": "alignment quality too low", "lap": la.quality, "ref": ra.quality})
+        ra, la = _aligned(sd, rl), _aligned(sd, target)
         cs = apply_profile(detect_corners(ra), catalog.get_track_profile(row["track"] or ""))
         res = compare(la, ra, cs)
         res["corners_provisional"] = all(c.provisional for c in cs)
@@ -266,9 +275,7 @@ def create_app(engine: AcquisitionEngine, catalog: Catalog, *, lan_enabled: bool
         target = next((l for l in ls if l.number == lap), None)
         if target is None or not target.valid_for_analysis:
             raise HTTPException(422, "lap is not a valid lap")
-        ra, la = align_lap(sd, rl), align_lap(sd, target)
-        if not (ra.quality["ok"] and la.quality["ok"]):
-            raise HTTPException(422, {"error": "alignment quality too low", "lap": la.quality, "ref": ra.quality})
+        ra, la = _aligned(sd, rl), _aligned(sd, target)
         n_valid = len([l for l in ls if l.valid_for_analysis and l.time_s])
         reliability = 0.0 if n_valid < 2 else min(1.0, 0.25 * (n_valid - 1))
         cs = apply_profile(detect_corners(ra), catalog.get_track_profile(row["track"] or ""))
@@ -532,6 +539,8 @@ def create_app(engine: AcquisitionEngine, catalog: Catalog, *, lan_enabled: bool
     @app.put("/api/tracks/profile")
     def put_profile(track: str, corners: list[dict]):
         need = {"id", "apex_m", "entry_m", "exit_m"}
+        if not corners:
+            raise HTTPException(422, "Nessuna curva da salvare: un profilo vuoto non ha senso e cancellerebbe le curve rilevate.")
         if any(not need <= set(c) for c in corners):
             raise HTTPException(422, f"each corner needs {sorted(need)}")
         catalog.put_track_profile(track, corners)

@@ -25,14 +25,15 @@ export default function TrackAnalysis({ sessionId, onPick }: { sessionId: string
     <section className="panel" data-testid="track">
       <h2>Track Analysis</h2>
       <div className="toolbar"><SessionPicker value={sessionId} onChange={onPick} /></div>
-      {data && <>
+      {data && data.corners.length === 0 && <p className="bad" data-testid="no-corners">Nessuna curva rilevata su questo giro di riferimento: il profilo non può essere salvato. Scegli una sessione con almeno un giro completo.</p>}
+      {data && data.corners.length > 0 && <>
         <p className="mut">{data.provisional ? 'Curve PROVVISORIE rilevate dal giro di riferimento: i numeri reali delle curve non sono noti. Assegna nomi/numeri e salva il profilo.' : 'Profilo circuito confermato dall\'utente.'}</p>
         <table><thead><tr><th>Id</th><th>Nome / numero</th><th>Ingresso m</th><th>Apice m</th><th>Uscita m</th><th>V min</th></tr></thead>
           <tbody>{rows.map((r, i) => <tr key={r.id + i}><td>{r.id}</td>
             <td><input value={r.name ?? ''} placeholder="es. T1" onChange={e => upd(i, 'name', e.target.value)} style={{ width: 90 }} /></td>
             {(['entry_m', 'apex_m', 'exit_m'] as const).map(k => <td key={k}><input type="number" value={Math.round(r[k])} onChange={e => upd(i, k, +e.target.value)} style={{ width: 80 }} /></td>)}
             <td className="mono">{r.min_speed_kmh?.toFixed(0) ?? '–'}</td></tr>)}</tbody></table>
-        <button onClick={save} data-testid="save-profile">Salva profilo circuito</button></>}
+        <button onClick={save} disabled={rows.length === 0} data-testid="save-profile">Salva profilo circuito</button></>}
       {msg && <p className="mut" data-testid="track-msg">{msg}</p>}
     </section>)
 }

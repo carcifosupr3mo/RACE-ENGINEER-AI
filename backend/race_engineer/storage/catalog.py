@@ -140,7 +140,8 @@ class Catalog:
     def get_track_profile(self, track: str, layout: str = "") -> list[dict] | None:
         import json
         r = self.db.execute("SELECT corners_json FROM track_profiles WHERE track=? AND layout=?", (track, layout)).fetchone()
-        return json.loads(r[0]) if r else None
+        corners = json.loads(r[0]) if r else None
+        return corners or None        # an EMPTY saved profile (older versions allowed saving one) counts as "no profile": detection stays in charge
 
     def put_track_profile(self, track: str, corners: list[dict], layout: str = "") -> None:
         import json
