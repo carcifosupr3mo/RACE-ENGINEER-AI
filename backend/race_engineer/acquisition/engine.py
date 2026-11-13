@@ -43,11 +43,16 @@ def rss_mb() -> float | None:
     return None
 
 
+PAUSE_GAP_S = 2.0
+
+
 @dataclass
 class Stats:
     samples_received: int = 0
     samples_lost: int = 0
     gap_events: int = 0
+    pause_events: int = 0          # long freezes of the game's telemetry clock (garage, menu, replay): not data loss
+    paused_s: float = 0.0
     polls: int = 0
     torn_or_invalid: int = 0
     reconnects: int = 0
@@ -208,7 +213,11 @@ class AcquisitionEngine:
         # loss accounting from the game's own delta time (heuristic, see docs/TELEMETRY-FORMAT.md)
         if self._last_et is not None:
             gap, dt = et - self._last_et, float(telem.mDeltaTime)
-            if dt > 0 and gap > 1.5 * dt:
+            if dt > 0 and gap > PAUSE_GAP_S:
+                # the game does not update telemetry in garage/menu/replay and the clock jumps: a pause, not lost samples
+                self.stats.pause_events += 1
+                self.stats.paused_s += gap
+            elif dt > 0 and gap > 1.5 * dt:
                 lost = int(round(gap / dt)) - 1
                 if lost > 0:
                     self.stats.samples_lost += lost
@@ -285,6 +294,7 @@ class AcquisitionEngine:
             "state": self.state.value, "synthetic": self.synthetic,
             "mapping": {"size": self.mapping_size, "expected_size": L.MAPPING_SIZE, "error": self.mapping_error},
             "samples_received": s.samples_received, "samples_lost": s.samples_lost, "gap_events": s.gap_events,
+            "pause_events": s.pause_events, "paused_s": round(s.paused_s, 1),
             "effective_hz": round(self.effective_hz(), 2),
             "duration_s": round(time.time() - s.started_wall, 1) if s.started_wall else 0.0,
             "rss_mb": rss_mb(), "reconnects": s.reconnects, "session_restarts": s.session_restarts,

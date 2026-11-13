@@ -58,6 +58,26 @@ def test_missing_samples_are_counted_exactly(tmp_path, catalog):
     assert e.stats.gap_events > 0
 
 
+def test_long_clock_jump_is_a_pause_not_loss(tmp_path, catalog):
+    # garage/menu: the game's elapsed time jumps while no telemetry is published
+    g = SyntheticGame("constant", laps=1)
+    e = make_engine(g, tmp_path, catalog, record=False)
+    for _ in range(200):
+        g.step(); e.poll_once()
+    assert e.stats.samples_lost == 0
+    real = e._ingest
+
+    def jumped(snap, now):
+        snap.telem.mElapsedTime += 50000.0
+        return real(snap, now)
+    e._ingest = jumped
+    g.step(); e.poll_once()
+    e._ingest = real
+    assert e.stats.samples_lost == 0
+    assert e.stats.pause_events == 1 and e.stats.paused_s > 40000
+    assert e.diagnostics()["pause_events"] == 1
+
+
 def test_connection_loss_and_reconnection(tmp_path, catalog):
     g = SyntheticGame("constant", laps=2)
     state = {"up": True}

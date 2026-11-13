@@ -28,3 +28,8 @@ details{margin-top:8px} summary{cursor:pointer;color:var(--mut)}
 
 .eng{border:1px solid var(--line);border-radius:4px;padding:10px;margin-bottom:12px;background:#0e1216} .eng-h{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:6px}
 .eng-row{display:flex;gap:18px;flex-wrap:wrap;margin-bottom:6px} .eng a{margin-left:auto;color:var(--acc)}
+
+.rpmbar{height:8px;background:#0a0c0f;border:1px solid var(--line);margin:10px 0 4px}.rpmbar i{display:block;height:100%}
+.tyres{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.tyre{border:1px solid var(--line);padding:8px;display:flex;flex-direction:column;gap:2px}
+.big div[data-testid=""],.big div{overflow-wrap:anywhere}
