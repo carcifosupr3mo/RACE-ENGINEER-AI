@@ -21,11 +21,14 @@ export default function LapAnalyzer({ sessionId, onPick }: { sessionId: string |
   const [corners, setCorners] = useState<any>(null)
   const [err, setErr] = useState('')
   const [cursor, setCursor] = useState<number | null>(null)
+  const [report, setReport] = useState<any>(null)
+  const [repErr, setRepErr] = useState('')
 
   useEffect(() => { api('/api/sessions').then(r => setSessions(r.filter((s: any) => s.status !== 'recording'))) }, [])
   useEffect(() => {
-    setLaps(null); setCmp(null); setTrace(null); setErr(''); setLap(null); setRef(null)
+    setLaps(null); setCmp(null); setTrace(null); setErr(''); setLap(null); setRef(null); setReport(null); setRepErr('')
     if (!sessionId) return
+    api(`/api/sessions/${sessionId}/report`).then(setReport).catch(e => setRepErr(e.message))
     api(`/api/sessions/${sessionId}/laps`).then(r => {
       setLaps(r)
       const valid = r.laps.filter((l: any) => l.valid_for_analysis)
@@ -58,6 +61,8 @@ export default function LapAnalyzer({ sessionId, onPick }: { sessionId: string |
       </div>
       {err && <p className="bad" data-testid="error">{err}</p>}
       {laps && <LapTable laps={laps} />}
+      {report && <Report r={report} onPick={setLap} />}
+      {repErr && <p className="mut" data-testid="report-error">Riepilogo sessione non disponibile: {repErr}</p>}
       {cmp && trace && corners && trace.laps[cmp.lap] && trace.laps[cmp.ref_lap] && <Analysis cmp={cmp} trace={trace} corners={corners} driving={driving} lap={cmp.lap} ref_={cmp.ref_lap} cursor={cursor} setCursor={setCursor} />}
     </section>)
 }
@@ -66,9 +71,9 @@ function LapTable({ laps }: { laps: any }) {
   const s = laps.summary
   return (
     <div className="lapbox">
-      <table data-testid="lap-table"><thead><tr><th>Giro</th><th>Tempo</th><th>Origine tempo</th><th>Stato</th><th>Motivi</th></tr></thead>
+      <table data-testid="lap-table"><thead><tr><th>Giro</th><th>Tempo</th><th>Origine tempo</th><th>Stato</th><th>Motivi / note</th></tr></thead>
         <tbody>{laps.laps.map((l: any) => <tr key={l.number} className={l.valid_for_analysis ? '' : 'dim'}>
-          <td>{l.number}</td><td>{fmtTime(l.time_s)}</td><td>{l.time_source}</td><td><span className={'tag ' + l.status}>{l.status}</span></td><td>{l.reasons.join(', ')}</td></tr>)}</tbody></table>
+          <td>{l.number}</td><td>{fmtTime(l.time_s)}</td><td>{l.time_source}</td><td><span className={'tag ' + l.status}>{l.status}</span></td><td>{l.reasons.join(', ')}{l.notes?.length ? <span className="mut"> {l.reasons.length ? '· ' : ''}{l.notes.join(', ')}</span> : null}</td></tr>)}</tbody></table>
       <p className="mut">Migliore: giro {s.best_lap ?? '–'} ({fmtTime(s.best_time_s)}) · media {fmtTime(s.mean_time_s)} · dev.std {s.std_time_s != null ? s.std_time_s.toFixed(3) + ' s' : '–'} — calcolate solo su {s.laps_valid} giri validi (completi, senza pit, non invalidati).</p>
     </div>)
 }
@@ -172,5 +177,39 @@ function DrivingTable({ d }: any) {
         <span className="mut"> · {Object.entries(f.evidence).map(([k, v]) => `${k}=${v}`).join(', ')}{f.time_impact_s != null ? ` · ${t(f.time_impact_s)} s in ${f.phase}` : ''}</span></li>)}</ul>}
       {d.gains.length > 0 && <ul data-testid="driving-gains">{d.gains.map((g: any, i: number) => <li key={i} className="ok"><b>{g.corner}</b> {g.label}: −{g.time_gain_s.toFixed(3)} s</li>)}</ul>}
       <p className="mut">Una frenata più tardi non è automaticamente migliore: ogni curva è valutata sul tempo di ingresso, centro e uscita. Affidabilità del riferimento: {(d.reference_reliability * 100).toFixed(0)}%.</p>
+    </div>)
+}
+
+const sgn = (x: number | null | undefined, d = 3) => x == null ? '–' : (x > 0 ? '+' : '') + x.toFixed(d)
+const heat = (x: number | null) => x == null ? 'transparent' : x <= 0.005 ? 'rgba(52,211,153,0.35)' : `rgba(255,77,79,${Math.min(0.75, 0.12 + x * 1.6)})`
+
+/** Whole-session view: ideal lap, where time is lost on every lap (heat map), advice sorted by gain. */
+function Report({ r, onPick }: { r: any; onPick: (n: number) => void }) {
+  const c = r.consistency
+  return (
+    <div data-testid="session-report">
+      <h3>Riepilogo sessione</h3>
+      <div className="grid4">
+        <div className="big"><div data-testid="rep-best">{fmtTime(r.best_time_s)}</div><small>miglior giro (giro {r.best_lap})</small></div>
+        <div className="big"><div data-testid="rep-ideal">{r.ideal_time_s != null ? fmtTime(r.ideal_time_s) : '–'}</div><small>giro ideale (migliori zone)</small></div>
+        <div className="big"><div className="ok">{r.ideal_gain_s != null ? '−' + r.ideal_gain_s.toFixed(3) : '–'}</div><small>margine teorico (s)</small></div>
+        <div className="big"><div>{c ? '±' + c.std_s.toFixed(3) : '–'}</div><small>costanza (dev.std s){c ? ` · ${c.within_0_5s_pct}% giri entro 0,5 s` : ''}</small></div>
+      </div>
+      {r.trend && <p className="mut">Andamento: <b>{r.trend.label}</b> ({sgn(r.trend.slope_s_per_lap)} s per giro).</p>}
+      {r.skipped_laps?.length > 0 && <p className="mut">Giri esclusi per dati di posizione insufficienti: {r.skipped_laps.map((x: any) => x.lap).join(', ')}.</p>}
+      {r.ideal_time_s == null && <p className="mut">Servono almeno 2 giri validi per calcolare giro ideale e margini.</p>}
+      {r.advice.length > 0
+        ? <><h4>Dove guadagnare, in ordine di importanza</h4>
+          <ol data-testid="rep-advice">{r.advice.map((a: any, i: number) => <li key={i}><b className="ok">−{a.gain_s.toFixed(3)} s</b> {a.text}</li>)}</ol></>
+        : r.ideal_time_s != null && <p className="ok" data-testid="rep-no-advice">Nessun margine misurabile oltre il rumore: i tuoi giri sono molto simili tra loro.</p>}
+      <details open><summary>Mappa del tempo perso, giro per giro (secondi persi rispetto al tuo miglior passaggio in ogni zona)</summary>
+        <div className="lapbox"><table data-testid="rep-heat"><thead><tr><th>Giro</th><th>Tempo</th><th>Δ miglior</th>
+          {r.zones.map((z: any) => <th key={z.id} title={z.label}>{z.kind === 'corner' ? z.label : '▬'}</th>)}</tr></thead>
+          <tbody>{r.laps.map((l: any) => <tr key={l.number} className="link" onClick={() => onPick(l.number)}>
+            <td>{l.number}{l.is_best ? ' ★' : ''}</td><td className="mono">{fmtTime(l.time_s)}</td><td className="mono">{sgn(l.delta_best_s)}</td>
+            {l.zones.map((x: number | null, i: number) => <td key={i} className="mono" style={{ background: heat(x) }}>{x == null ? '–' : x <= 0.005 ? '★' : x.toFixed(2)}</td>)}</tr>)}</tbody></table></div>
+        <p className="mut">★ = il tuo miglior passaggio in quella zona · ▬ = rettilineo · clicca un giro per confrontarlo qui sotto.</p>
+      </details>
+      <p className="mut">{r.note}</p>
     </div>)
 }

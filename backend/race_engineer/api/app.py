@@ -20,7 +20,8 @@ from ..importers.lmu_duckdb import LmuDuckdb
 from ..lmu import layout as L
 from ..lmu.diagnostics import STATE_LABELS_IT, ConnState, build_report
 from ..lmu.discovery import LmuInstall, find_install, is_lmu_process_running
-from ..analysis.align import align_lap
+from ..analysis.align import AlignedLap, align_lap
+from ..analysis.report import build_report
 from ..analysis.compare import compare, consistency
 from ..analysis import driving as drv_an
 from ..analysis.session_mode import classify as classify_session
@@ -224,10 +225,10 @@ def create_app(engine: AcquisitionEngine, catalog: Catalog, *, lan_enabled: bool
     def _ref(sd, ls, ref: int | None):
         ok = [l for l in ls if l.valid_for_analysis and l.time_s]
         if not ok:
-            raise HTTPException(422, "no valid laps in this session")
+            raise HTTPException(422, "Nessun giro valido in questa sessione: servono giri completi, senza pit e non invalidati.")
         pick = next((l for l in ok if l.number == ref), None) if ref else min(ok, key=lambda l: l.time_s)
         if pick is None:
-            raise HTTPException(422, "reference lap is not a valid lap")
+            raise HTTPException(422, "Il giro di riferimento non è un giro valido: sceglierne un altro.")
         return pick
 
     def _aligned(sd, lap):
@@ -268,7 +269,7 @@ def create_app(engine: AcquisitionEngine, catalog: Catalog, *, lan_enabled: bool
         rl = _ref(sd, ls, ref)
         target = next((l for l in ls if l.number == lap), None)
         if target is None or not target.valid_for_analysis:
-            raise HTTPException(422, "lap is not a valid lap")
+            raise HTTPException(422, "Il giro scelto non è un giro valido (incompleto, in pit o invalidato).")
         ra, la = _aligned(sd, rl), _aligned(sd, target)
         cs = apply_profile(detect_corners(ra), catalog.get_track_profile(row["track"] or ""))
         res = compare(la, ra, cs)
@@ -283,7 +284,7 @@ def create_app(engine: AcquisitionEngine, catalog: Catalog, *, lan_enabled: bool
         rl = _ref(sd, ls, ref)
         target = next((l for l in ls if l.number == lap), None)
         if target is None or not target.valid_for_analysis:
-            raise HTTPException(422, "lap is not a valid lap")
+            raise HTTPException(422, "Il giro scelto non è un giro valido (incompleto, in pit o invalidato).")
         ra, la = _aligned(sd, rl), _aligned(sd, target)
         n_valid = len([l for l in ls if l.valid_for_analysis and l.time_s])
         reliability = 0.0 if n_valid < 2 else min(1.0, 0.25 * (n_valid - 1))
@@ -294,12 +295,37 @@ def create_app(engine: AcquisitionEngine, catalog: Catalog, *, lan_enabled: bool
         res["provenance"] = sd.provenance
         return clean(res)
 
+    @app.get("/api/sessions/{sid}/report")
+    def report_api(sid: str, ref: int | None = None):
+        """Whole-session view: ideal lap, time lost/won per zone on every valid lap, consistency, prioritised advice."""
+        row, sd, ls = _session(sid)
+        ok = [l for l in ls if l.valid_for_analysis and l.time_s]
+        if not ok:
+            raise HTTPException(422, "Nessun giro valido in questa sessione: servono giri completi, senza pit e non invalidati.")
+        aligned: dict[int, AlignedLap] = {}
+        skipped = []
+        for l in ok:
+            a = align_lap(sd, l)
+            if a.quality["ok"]:
+                aligned[l.number] = a
+            else:
+                skipped.append({"lap": l.number, "coverage": round(a.quality["coverage"], 3)})
+        if not aligned:
+            raise HTTPException(422, "I giri validi non hanno dati di posizione sufficienti per l'analisi.")
+        best = min(aligned, key=lambda n: next(l.time_s for l in ok if l.number == n))
+        cs = apply_profile(detect_corners(aligned[best]), catalog.get_track_profile(row["track"] or ""))
+        rep = build_report(aligned, {l.number: l.time_s for l in ok if l.number in aligned}, cs, float(row["track_length_m"] or sd.track_length_m),
+                           all(c.provisional for c in cs))
+        rep["skipped_laps"] = skipped
+        rep["provenance"] = sd.provenance
+        return clean(rep)
+
     @app.get("/api/sessions/{sid}/consistency")
     def consistency_api(sid: str):
         row, sd, ls = _session(sid)
         ok = [l for l in ls if l.valid_for_analysis]
         if len(ok) < 3:
-            raise HTTPException(422, "need at least 3 valid laps")
+            raise HTTPException(422, "Servono almeno 3 giri validi per misurare la costanza.")
         al = [align_lap(sd, l) for l in ok]
         return clean({"laps": [l.number for l in ok], "corners": consistency(al, detect_corners(al[0]))})
 
