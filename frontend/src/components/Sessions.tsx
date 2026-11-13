@@ -14,7 +14,8 @@ export default function Sessions({ onOpen }: { onOpen: (id: string) => void }) {
   }
   return (
     <section className="panel" data-testid="sessions">
-      <h2>Sessions</h2>
+      <h2>Sessioni registrate</h2>
+      <p className="help">Ogni volta che guidi, l'app registra la sessione. Apri una sessione per analizzarne i giri.</p>
       <table><thead><tr><th>Circuito</th><th>Vettura</th><th>Tipo</th><th>Origine</th><th>Stato</th><th>Campioni</th><th>Persi</th><th /></tr></thead>
         <tbody>{(rows ?? []).map(r => (
           <tr key={r.id}>

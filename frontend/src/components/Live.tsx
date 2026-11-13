@@ -39,7 +39,8 @@ export default function Live() {
   return (
     <section className="panel" data-testid="live">
       {synth && <div className="synth" data-testid="synth-banner">DATI SINTETICI — NON PROVENGONO DA LE MANS ULTIMATE</div>}
-      <h2>Live Telemetry</h2>
+      <h2>Telemetria in diretta</h2>
+      <p className="help">Quello che sta facendo la macchina in questo momento, letto da Le Mans Ultimate.</p>
       {down && <p className="bad">Backend non raggiungibile…</p>}
       <p data-testid="state">{st?.state_label ?? '–'} {v && <span className={ds.cls} data-testid="drive-state">{ds.label}</span>}{' '}
         <span className="mut">· {st?.effective_hz ?? 0} Hz{lost > 0 ? ` · campioni persi ${lost}` : ''}

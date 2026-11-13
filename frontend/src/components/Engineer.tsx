@@ -20,7 +20,8 @@ export default function Engineer({ sessionId, onPick }: { sessionId: string | nu
   }
   return (
     <section className="panel" data-testid="engineer">
-      <h2>Race Engineer AI</h2>
+      <h2>Ingegnere AI</h2>
+      <p className="help">Fai domande in italiano sulla tua sessione: le risposte usano solo i dati misurati.</p>
       <div className="toolbar"><SessionPicker value={sessionId} onChange={onPick} /></div>
       <p className="mut">Le risposte usano solo fatti calcolati dai dati della sessione. Se un dato manca, viene dichiarato. L'AI esterna è opzionale (senza, risponde il motore a regole).</p>
       <div className="chips">{QUICK.map(x => <button key={x} disabled={!sessionId || busy} onClick={() => ask(x)}>{x}</button>)}</div>

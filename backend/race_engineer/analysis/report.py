@@ -45,6 +45,8 @@ def _zone_time(al: AlignedLap, z: dict) -> float | None:
     if i1 <= i0:
         return None
     a, b = al.t[i0], al.t[i1]
+    if i0 == 0 and not np.isfinite(a):
+        a = 0.0                          # t is the time since the lap started: the line itself is time zero
     return float(b - a) if np.isfinite(a) and np.isfinite(b) and b > a else None
 
 

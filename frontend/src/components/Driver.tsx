@@ -26,7 +26,8 @@ export default function Driver({ sessionId, onPick }: { sessionId: string | null
   }
   return (
     <section className="panel" data-testid="driver">
-      <h2>Driver Development</h2>
+      <h2>Crescita del pilota</h2>
+      <p className="help">Cosa allenare con priorità, in base ai tuoi giri registrati.</p>
       <div className="toolbar">
         <label className="inl">Periodo <select value={period} onChange={e => setPeriod(e.target.value)}><option value="day">giornaliero</option><option value="week">settimanale</option><option value="month">mensile</option></select></label>
         <label className="inl"><input type="checkbox" checked={synth} onChange={e => setSynth(e.target.checked)} /> includi sintetici</label></div>

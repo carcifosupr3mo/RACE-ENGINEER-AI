@@ -7,7 +7,8 @@ export default function DisplayInfo() {
   useEffect(() => { api('/api/display/info').then(setI).catch(() => setI(null)) }, [])
   return (
     <section className="panel" data-testid="display-info">
-      <h2>Driving Display</h2>
+      <h2>Display di guida</h2>
+      <p className="help">Una schermata grande e semplice da leggere in pista, con i consigli dell'ingegnere. Puoi metterla su un secondo monitor o su un altro PC/tablet.</p>
       <p>Seconda modalità di presentazione della <b>stessa</b> app (stesso motore, stessa telemetria, stessi risultati della dashboard), pensata per un monitor esterno da 10–13″.</p>
       <h3>Secondo monitor collegato al PC</h3>
       <p>Apri <a href="/driving-display" target="_blank" rel="noreferrer" data-testid="display-link">/driving-display</a> in una finestra e trascinala sul secondo monitor (F11 per il tutto schermo). L'app desktop ha la voce di menu «Apri Driving Display» nella barra di sistema.</p>

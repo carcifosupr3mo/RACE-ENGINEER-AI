@@ -18,7 +18,8 @@ export default function TyreFuel({ sessionId, onPick }: { sessionId: string | nu
   }, [sessionId, target, margin])
   return (
     <section className="panel" data-testid="tyrefuel">
-      <h2>Tyre &amp; Fuel</h2>
+      <h2>Gomme e benzina</h2>
+      <p className="help">Consumo di carburante e usura delle gomme, e quanto puoi andare avanti.</p>
       <div className="toolbar"><SessionPicker value={sessionId} onChange={onPick} />
         <label className="inl">Giri obiettivo <input type="number" min={1} value={target} onChange={e => setTarget(+e.target.value)} style={{ width: 70 }} /></label>
         <label className="inl">Margine (giri) <input type="number" step={0.1} min={0} value={margin} onChange={e => setMargin(+e.target.value)} style={{ width: 70 }} /> <small className="mut">manuale</small></label></div>

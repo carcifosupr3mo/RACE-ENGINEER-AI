@@ -75,3 +75,9 @@ def test_report_endpoint_and_errors(tmp_path):
     j = r.json()
     assert j["zones"] and j["laps"] and j["ideal_time_s"] and "note" in j
     assert c.get("/api/sessions/nope/report").status_code == 404
+
+
+def test_first_zone_at_the_start_line_is_not_dropped(tmp_path):
+    _, _, sd, ls, al, cs = build(tmp_path, "constant", 4)
+    rep = build_report(al, {l.number: l.time_s for l in ls if l.number in al}, cs, sd.track_length_m, True)
+    assert rep["zones"][0]["start_m"] == 0 and len(rep["zones"]) == len(build_zones(cs, sd.track_length_m))

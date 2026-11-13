@@ -49,7 +49,8 @@ export default function LapAnalyzer({ sessionId, onPick }: { sessionId: string |
 
   return (
     <section className="panel" data-testid="lap-analyzer">
-      <h2>Lap Analyzer</h2>
+      <h2>Analisi dei giri</h2>
+      <p className="help">Guarda com'è andata la sessione (riepilogo qui sotto), poi scegli due giri per vedere in quale punto della pista perdi o guadagni tempo.</p>
       <div className="toolbar">
         <label>Sessione <select value={sessionId ?? ''} onChange={e => onPick(e.target.value)} data-testid="session-select">
           <option value="">—</option>{sessions.map(s => <option key={s.id} value={s.id}>{s.is_synthetic ? '[SINT] ' : ''}{s.track} · {s.session_type} · {s.samples} camp.</option>)}</select></label>

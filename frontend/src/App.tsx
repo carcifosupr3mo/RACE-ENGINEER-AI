@@ -13,9 +13,9 @@ import LanSettings from './components/LanSettings'
 import DisplayInfo from './components/DisplayInfo'
 
 const SECTIONS: [string, string, number | null][] = [
-  ['overview', 'Overview', null], ['live', 'Live Telemetry', null], ['display', 'Driving Display', null], ['sessions', 'Sessions', null],
-  ['laps', 'Lap Analyzer', null], ['track', 'Track Analysis', null], ['ai', 'Race Engineer AI', null],
-  ['setup', 'Setup Advisor', null], ['tyre', 'Tyre & Fuel', null], ['driver', 'Driver Development', null], ['settings', 'Settings', null],
+  ['overview', 'Panoramica', null], ['live', 'Telemetria live', null], ['display', 'Display di guida', null], ['sessions', 'Sessioni', null],
+  ['laps', 'Analisi giri', null], ['track', 'Analisi circuito', null], ['ai', 'Ingegnere AI', null],
+  ['setup', 'Assetto', null], ['tyre', 'Gomme e benzina', null], ['driver', 'Crescita pilota', null], ['settings', 'Impostazioni', null],
 ]
 
 function Planned({ phase, name }: { phase: number; name: string }) {
@@ -58,7 +58,7 @@ export default function App() {
 function Overview({ health, go }: { health: any; go: (s: string) => void }) {
   return (
     <section className="panel">
-      <h2>Overview</h2>
+      <h2>Panoramica</h2>
       <p>Backend: {health ? <span className="ok">online · v{health.version} · {health.platform}</span> : <span className="bad">non raggiungibile</span>}</p>
       <p className="mut">Stato della verifica: l'acquisizione da Le Mans Ultimate reale <b>non è ancora verificata</b>. I dati sintetici sono sempre marcati.</p>
       <button onClick={() => go('live')}>Live Telemetry</button> <button onClick={() => go('sessions')}>Sessions</button>
@@ -67,7 +67,7 @@ function Overview({ health, go }: { health: any; go: (s: string) => void }) {
 
 function Settings({ health }: { health: any }) {
   return (<>
-    <section className="panel"><h2>Settings</h2>
+    <section className="panel"><h2>Impostazioni</h2>
       <div className="row"><span>Accesso LAN</span><span>{health?.lan_enabled ? 'ATTIVO (token richiesto)' : 'disattivato (solo questo PC)'}</span></div>
     </section>
     <LanSettings />

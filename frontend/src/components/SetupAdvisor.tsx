@@ -25,7 +25,8 @@ export default function SetupAdvisor({ sessionId, onPick }: { sessionId: string 
   }
   return (
     <section className="panel" data-testid="setup">
-      <h2>Setup Advisor</h2>
+      <h2>Consigli sull'assetto</h2>
+      <p className="help">Suggerimenti su come cambiare l'assetto, in base ai dati della sessione.</p>
       <p className="warn">Formato dei setup LMU non verificato: accetta JSON o testo .svm (copia fedele conservata); il parser è generico. Nessuna modifica automatica; nessun valore viene proposto senza limiti min/max verificati nel setup stesso.</p>
       <div className="toolbar"><SessionPicker value={sessionId} onChange={onPick} /></div>
       <textarea value={text} onChange={e => setText(e.target.value)} rows={6} placeholder="Incolla il JSON del setup (copia: l'originale non viene mai modificato)" style={{ width: '100%' }} data-testid="setup-json" />
