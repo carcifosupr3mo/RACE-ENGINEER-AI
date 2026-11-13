@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { api, wsUrl } from '../lib/api'
+import { api, tok, wsUrl } from '../lib/api'
 
 /** One shared stream for the Driving Display: the SAME /ws/live socket the dashboard uses (field `engineer`).
  *  Auto-reconnects with back-off, marks the data stale when nothing arrives, never invents values. */
@@ -7,6 +7,8 @@ export interface Stream {
   connected: boolean
   stale: boolean
   everConnected: boolean
+  /** the PC refuses this browser: no / wrong access token (LAN mode) */
+  authError: 'missing' | 'wrong' | null
   engineer: any | null
   sample: any | null
   status: any | null
@@ -23,7 +25,7 @@ export function nextBackoff(prev: number): number {
 }
 
 export function useEngineerStream(): Stream {
-  const [s, setS] = useState<Stream>({ connected: false, stale: true, everConnected: false, engineer: null, sample: null, status: null, map: null, trail: [], lastEvents: [], ageMs: Infinity })
+  const [s, setS] = useState<Stream>({ connected: false, stale: true, everConnected: false, authError: null, engineer: null, sample: null, status: null, map: null, trail: [], lastEvents: [], ageMs: Infinity })
   const last = useRef(0)
   const mapVer = useRef('')
   const lap = useRef<number | null>(null)
@@ -60,11 +62,16 @@ export function useEngineerStream(): Stream {
           if (!t.length || Math.abs(p.lap_dist_m - t[t.length - 1][2]) >= 3) { t.push([p.x, p.z, p.lap_dist_m]); if (t.length > 6000) t.shift() }
         }
         if (en?.map_version) loadMap(en.map_version)
-        setS(prev => ({ ...prev, connected: true, stale: false, everConnected: true, engineer: en ?? null, sample: m.sample, status: m.status,
+        setS(prev => ({ ...prev, connected: true, stale: false, everConnected: true, authError: null, engineer: en ?? null, sample: m.sample, status: m.status,
                         trail: trail.current, lastEvents: m.events?.length ? m.events : prev.lastEvents, ageMs: 0 }))
       }
       ws.onclose = () => {
         setS(prev => ({ ...prev, connected: false, stale: true }))
+        if (!last.current) {                                   // never got data: is the PC refusing us (access token)?
+          fetch('/api/health' + (tok() ? '?token=' + encodeURIComponent(tok()!) : '')).then(r => {
+            if (alive) setS(p => ({ ...p, authError: r.status === 403 ? (tok() ? 'wrong' : 'missing') : null }))
+          }).catch(() => {})
+        }
         if (alive) { timer = setTimeout(open, back); back = nextBackoff(back) }
       }
       ws.onerror = () => { try { ws?.close() } catch { /* ignore */ } }

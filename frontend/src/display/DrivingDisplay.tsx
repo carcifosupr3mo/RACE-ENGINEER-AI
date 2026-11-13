@@ -39,7 +39,10 @@ export default function DrivingDisplay() {
         <button className="d-link d-fs" data-testid="display-fullscreen" onClick={toggleFull} title="Tutto schermo (tasto F)">{full ? 'esci da tutto schermo' : 'tutto schermo'}</button>
         <a className="d-link" href="/app/">dashboard</a>
       </header>
-      {offline && <div className="d-offline" data-testid="display-offline" role="alert">{st.everConnected ? 'Nessun dato dal PC: valori in pausa (ultimo stato mostrato attenuato)' : 'Connessione al PC in corso…'}</div>}
+      {offline && <div className="d-offline" data-testid="display-offline" role="alert">{st.everConnected ? 'Nessun dato dal PC: valori in pausa (ultimo stato mostrato attenuato)'
+        : st.authError === 'missing' ? 'Il PC ti riconosce ma serve il codice di accesso: apri l\'indirizzo COMPLETO mostrato sul PC in Impostazioni → Display in rete (finisce con ?token=…), oppure copialo da lì.'
+        : st.authError === 'wrong' ? 'Codice di accesso non valido (forse l\'app è stata riavviata o il codice è cambiato): riapri l\'indirizzo aggiornato mostrato sul PC in Impostazioni → Display in rete.'
+        : 'Connessione al PC in corso…'}</div>}
       <div className="d-body">
         <section className="d-coach">
           <Corner c={c} />

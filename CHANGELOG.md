@@ -1,4 +1,9 @@
 # CHANGELOG
+## 0.6.6 (non rilasciata) — Analisi circuito con mappa a colori, testi più chiari, display da telefono
+- **Analisi circuito:** la pista è disegnata con ogni zona colorata in base al tempo che perdi (verde = costante, rosso = lì perdi di più), le zone dove perdi più tempo e le tue curve migliori in frasi semplici, e una tabella zona per zona. La mappa dei nomi delle curve è ora facoltativa e ripiegata.
+- **Tutto più leggibile:** menu e titoli in italiano («Analisi giri», «Gomme e benzina»…), una riga che spiega cosa fa ogni pagina, testo più grande.
+- **Display da telefono/altro PC:** se l'indirizzo non contiene il codice di accesso (`?token=…`) la pagina si apriva ma restava su «Connessione al PC in corso…» senza spiegare perché. Ora dice chiaramente che manca (o è sbagliato) il codice e dove trovare l'indirizzo completo; il browser ricorda il codice una volta usato. Verificato lato server: dall'indirizzo di rete il flusso dati parte con il codice e viene rifiutato senza.
+- Corretto: la prima zona del giro (dal traguardo) non compariva nel riepilogo.
 ## 0.6.5 (non rilasciata) — Correzioni dai test su Le Mans Ultimate reale, analisi giri, display in rete
 Corretto dopo la prova su un PC con LMU reale (Monza):
 - **Lap Analyzer: «alignment quality too low» / errore 500.** Nei dati reali il contatore del giro e la distanza di giro non cambiano sullo stesso campione al traguardo: i primi campioni del giro sembravano a ~fine pista e il giro veniva scartato (copertura 0 %). Ora la distanza viene riallineata (`unwrap_lap_distance`), anche per live/coach. Tempo del giro: il valore del gioco arriva in ritardo (primi campioni «vecchi»); si usa la mediana e, se diverge dall'orologio di oltre 0,5 s, l'orologio (con nota). Piccoli buchi (≤ 0,5 s) non invalidano più il giro: finiscono nelle note. Errori ora in italiano e comprensibili (422, non 500). Test su difetti riprodotti (falliscono senza la correzione).
