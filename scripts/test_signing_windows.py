@@ -32,7 +32,7 @@ def throwaway_credentials(tmp: Path) -> dict:
           "Export-PfxCertificate -Cert $c -FilePath $env:RE_PFX -Password (ConvertTo-SecureString -String $env:RE_PW -Force -AsPlainText) | Out-Null;"
           "Remove-Item ('Cert:\\CurrentUser\\My\\' + $c.Thumbprint)")
     subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command", ps], check=True,
-                   env={**os.environ, "RE_SUBJ": SUBJECT, "RE_PFX": str(pfx), "RE_PW": password})
+                   env=sign_windows.ps_env(RE_SUBJ=SUBJECT, RE_PFX=str(pfx), RE_PW=password))
     return {sign_windows.ENV_PFX: base64.b64encode(pfx.read_bytes()).decode(), sign_windows.ENV_PASSWORD: password}
 
 

@@ -47,11 +47,19 @@ def sign_command(signtool: str, pfx: str, password: str, timestamp_url: str, fil
     return [signtool, "sign", "/fd", "SHA256", "/tr", timestamp_url, "/td", "SHA256", "/d", DESCRIPTION, "/f", pfx, "/p", password, *files]
 
 
+def ps_env(**extra) -> dict:
+    """Environment for a Windows PowerShell 5.1 child. When the build is started from PowerShell 7 the inherited PSModulePath points at
+    PowerShell 7 modules, which 5.1 cannot load (no Cert: drive, no ConvertTo-SecureString): drop it so 5.1 uses its own."""
+    env = {k: v for k, v in os.environ.items() if k.upper() != "PSMODULEPATH"}
+    env.update(extra)
+    return env
+
+
 def signature_status(path: str) -> tuple[str, str]:
     """(status, signer subject) as Windows reports them, e.g. ('Valid', 'CN=...') or ('NotSigned', '')."""
     ps = "$s = Get-AuthenticodeSignature -LiteralPath $env:RE_SIGN_CHECK; $s.Status; if ($s.SignerCertificate) { $s.SignerCertificate.Subject }"
     out = subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command", ps], capture_output=True, text=True, timeout=120,
-                         env={**os.environ, "RE_SIGN_CHECK": path}).stdout.split("\n")
+                         env=ps_env(RE_SIGN_CHECK=path)).stdout.split("\n")
     lines = [ln.strip() for ln in out if ln.strip()]
     return (lines[0] if lines else "Unknown"), (lines[1] if len(lines) > 1 else "")
 

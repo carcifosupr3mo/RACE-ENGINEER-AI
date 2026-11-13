@@ -31,3 +31,10 @@ def test_sign_command_uses_sha256_and_a_timestamp():
 def test_signing_with_a_certificate_refuses_to_pretend_off_windows():
     with pytest.raises(RuntimeError):
         sign_windows.sign(["a.exe"], {sign_windows.ENV_PFX: "QUJD"})
+
+
+def test_windows_powershell_child_does_not_inherit_powershell7_module_path(monkeypatch):
+    """CI regression: started from PowerShell 7, the inherited PSModulePath made Windows PowerShell 5.1 lose its Cert: drive."""
+    monkeypatch.setenv("PSModulePath", r"C:\Program Files\PowerShell\7\Modules")
+    env = sign_windows.ps_env(RE_X="1")
+    assert not any(k.upper() == "PSMODULEPATH" for k in env) and env["RE_X"] == "1"
