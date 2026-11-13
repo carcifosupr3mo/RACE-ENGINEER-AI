@@ -207,7 +207,7 @@ def test_display_page_info_and_lan_security(tmp_path, catalog):
     r = c.get("/driving-display")
     assert r.status_code == 200 and "app" in r.text and c.get("/driving-display/").status_code == 200
     info = c.get("/api/display/info").json()
-    assert info["path"] == "/driving-display" and info["lan_enabled"] is False and info["lan_urls"] == [] and "--lan" in info["how_to_enable_lan"]
+    assert info["path"] == "/driving-display" and info["lan_enabled"] is False and info["lan_urls"] == [] and "Display in rete" in info["how_to_enable_lan"]
     nodist = TestClient(create_app(e, catalog, install=LmuInstall(), webdist=tmp_path / "missing", live_options=FAST), base_url="http://127.0.0.1")
     assert nodist.get("/driving-display").status_code == 503
     lan = TestClient(create_app(e, catalog, install=LmuInstall(), lan_enabled=True, token="tok123", webdist=dist, live_options=FAST), base_url="http://192.168.1.50:8765")
