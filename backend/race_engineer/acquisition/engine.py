@@ -108,7 +108,9 @@ class AcquisitionEngine:
                 t0 = time.perf_counter()
                 self.poll_once()
                 dt = time.perf_counter() - t0
-                self._stop.wait(max(0.0, period - dt))
+                # no game / nothing flowing: wake rarely (idle CPU ~0); while telemetry flows poll fast so no sample is missed
+                idle = self.state is not ConnState.ACQUIRING
+                self._stop.wait(max(0.0, (0.25 if idle else period) - dt))
         self._thread = threading.Thread(target=loop, name="acquisition", daemon=True)
         self._thread.start()
 

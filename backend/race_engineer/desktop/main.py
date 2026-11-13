@@ -164,7 +164,9 @@ def run(argv=None) -> int:
     args = ap.parse_args(argv)
     if args.smoke:
         os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-    os.environ.setdefault("QTWEBENGINE_CHROMIUM_FLAGS", "--no-sandbox --disable-gpu" if args.smoke else "")
+    # lean web view: one renderer process, small JS heap, no background network/sync services (RAM and idle CPU)
+    lean = "--renderer-process-limit=1 --js-flags=--max-old-space-size=192 --disable-background-networking --disable-sync --disable-breakpad --no-pings"
+    os.environ.setdefault("QTWEBENGINE_CHROMIUM_FLAGS", ("--no-sandbox --disable-gpu " if args.smoke else "") + lean)
     from PySide6.QtCore import Qt, QTimer, QUrl
     from PySide6.QtGui import QAction, QColor, QIcon, QPainter, QPixmap
     from PySide6.QtWebEngineWidgets import QWebEngineView
@@ -320,7 +322,7 @@ def run(argv=None) -> int:
     def do_quit():
         quitting["v"] = True
         if not args.smoke:
-            settings.setValue("geometry", win.saveGeometry())
+            settings.setValue("geometry", win.saveGeometry()); settings.sync()
         if instance_server is not None:
             instance_server.close()
         tray.hide(); win.close()
@@ -329,12 +331,12 @@ def run(argv=None) -> int:
         backend.stop()                 # controlled shutdown of server, engine, recorder
         app.quit()
 
-    def close_event(ev):               # closing the window minimizes to tray while the engine keeps recording
-        if not quitting["v"] and tray.isVisible():
-            ev.ignore(); win.hide()
-            tray.showMessage("Race Engineer AI", "In esecuzione in background. Usa «Esci» dal menu per chiudere.")
-        else:
+    def close_event(ev):               # the X closes the whole app: recording is closed and saved, nothing stays running
+        if quitting["v"]:
             ev.accept()
+        else:
+            ev.ignore()
+            QTimer.singleShot(0, do_quit)
     win.closeEvent = close_event       # type: ignore[method-assign]
 
     last = {"s": None}
@@ -398,6 +400,8 @@ def run(argv=None) -> int:
             do_quit(); app.exit(0 if ok else 1)
         QTimer.singleShot(8000, finish)
     code = app.exec()
+    if not args.smoke:
+        os._exit(code)                 # everything is saved by do_quit(): do not wait for stray threads, leave no process behind
     return code
 
 
