@@ -21,7 +21,7 @@ from ..lmu import layout as L
 from ..lmu.diagnostics import STATE_LABELS_IT, ConnState, build_report
 from ..lmu.discovery import LmuInstall, find_install, is_lmu_process_running
 from ..analysis.align import AlignedLap, align_lap
-from ..analysis.report import build_report
+from ..analysis.report import build_report as build_session_report
 from ..analysis.compare import compare, consistency
 from ..analysis import driving as drv_an
 from ..analysis.session_mode import classify as classify_session
@@ -314,7 +314,7 @@ def create_app(engine: AcquisitionEngine, catalog: Catalog, *, lan_enabled: bool
             raise HTTPException(422, "I giri validi non hanno dati di posizione sufficienti per l'analisi.")
         best = min(aligned, key=lambda n: next(l.time_s for l in ok if l.number == n))
         cs = apply_profile(detect_corners(aligned[best]), catalog.get_track_profile(row["track"] or ""))
-        rep = build_report(aligned, {l.number: l.time_s for l in ok if l.number in aligned}, cs, float(row["track_length_m"] or sd.track_length_m),
+        rep = build_session_report(aligned, {l.number: l.time_s for l in ok if l.number in aligned}, cs, float(row["track_length_m"] or sd.track_length_m),
                            all(c.provisional for c in cs))
         rep["skipped_laps"] = skipped
         rep["provenance"] = sd.provenance
