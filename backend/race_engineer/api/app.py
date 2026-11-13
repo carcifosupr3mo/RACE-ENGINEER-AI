@@ -80,6 +80,13 @@ def create_app(engine: AcquisitionEngine, catalog: Catalog, *, lan_enabled: bool
     token = token or secrets.token_urlsafe(24)
     app.state.token = token
     app.state.install = install
+    # LAN access can be switched on/off at runtime by the desktop shell (a second listener on all interfaces, see desktop/main.py).
+    # lan_state["on"]: LAN is open; the CLI flag --lan (lan_enabled) keeps its old meaning: token required for everybody.
+    lan_state = app.state.lan = {"on": bool(lan_enabled), "port": None, "control": None, "error": None}
+    LOOPBACK_CLIENTS = {"127.0.0.1", "::1", "localhost", "testclient", None}
+
+    def remote_client(client) -> bool:
+        return (client.host if client else None) not in LOOPBACK_CLIENTS
 
     data_dir_provider = lambda: engine.data_root or data_dir()
 
@@ -88,17 +95,19 @@ def create_app(engine: AcquisitionEngine, catalog: Catalog, *, lan_enabled: bool
             app.state.install = find_install()
         return app.state.install
 
-    def authorized(host: str | None, auth: str | None, query_token: str | None) -> bool:
+    def authorized(host: str | None, auth: str | None, query_token: str | None, client=None) -> bool:
         hostname = (host or "").rsplit(":", 1)[0] if not (host or "").startswith("[") else (host or "").split("]")[0] + "]"
-        if lan_enabled:
+        if lan_enabled or remote_client(client):
+            if remote_client(client) and not lan_state["on"]:
+                return False                  # a remote PC can only get in while the owner has switched LAN access on
             supplied = (auth or "").removeprefix("Bearer ").strip() or (query_token or "")
             return secrets.compare_digest(supplied, token)
         return hostname in LOCAL_HOSTS
 
-    def cross_site(origin: str | None, fetch_site: str | None) -> bool:
+    def cross_site(origin: str | None, fetch_site: str | None, client=None) -> bool:
         """Loopback mode has no token, so a web page open in the user's browser could call the API (CSRF). Browsers label such
         requests with a foreign Origin / Sec-Fetch-Site: cross-site; the app's own pages and non-browser clients do not."""
-        if lan_enabled:
+        if lan_enabled or remote_client(client):
             return False                  # every call already needs the token, which a foreign page does not have
         if origin and origin.split("//")[-1].rsplit(":", 1)[0] not in LOCAL_HOSTS:
             return True
@@ -107,14 +116,14 @@ def create_app(engine: AcquisitionEngine, catalog: Catalog, *, lan_enabled: bool
     @app.middleware("http")
     async def guard(request: Request, call_next):
         if request.url.path.startswith("/api") and (not authorized(
-                request.headers.get("host"), request.headers.get("authorization"), request.query_params.get("token"))
-                or cross_site(request.headers.get("origin"), request.headers.get("sec-fetch-site"))):
+                request.headers.get("host"), request.headers.get("authorization"), request.query_params.get("token"), request.client)
+                or cross_site(request.headers.get("origin"), request.headers.get("sec-fetch-site"), request.client)):
             return JSONResponse({"detail": "forbidden"}, status_code=403)
         return await call_next(request)
 
     @app.get("/api/health")
     def health():
-        return {"ok": True, "version": __version__, "lan_enabled": lan_enabled, "platform": sys.platform}
+        return {"ok": True, "version": __version__, "lan_enabled": lan_state["on"], "platform": sys.platform}
 
     @app.get("/api/status")
     def status():
@@ -130,10 +139,10 @@ def create_app(engine: AcquisitionEngine, catalog: Catalog, *, lan_enabled: bool
 
     @app.websocket("/ws/live")
     async def ws_live(ws: WebSocket):
-        if not authorized(ws.headers.get("host"), ws.headers.get("authorization"), ws.query_params.get("token")):
+        if not authorized(ws.headers.get("host"), ws.headers.get("authorization"), ws.query_params.get("token"), ws.client):
             await ws.close(code=4403)
             return
-        if cross_site(ws.headers.get("origin"), None):
+        if cross_site(ws.headers.get("origin"), None, ws.client):
             await ws.close(code=4403)
             return
         await ws.accept()
@@ -444,14 +453,44 @@ def create_app(engine: AcquisitionEngine, catalog: Catalog, *, lan_enabled: bool
         rep = sanitize_obj(clean(rep))
         return PlainTextResponse(_ck.to_markdown(rep), media_type="text/markdown; charset=utf-8") if format == "md" else rep
 
+    def lan_info(req_port: int | None = None) -> dict:
+        port = lan_state["port"] or req_port
+        on = lan_state["on"]
+        urls = [f"http://{ip}:{port}/driving-display?token={token}" for ip in _lan_ips()] if on and port else []
+        return {"available": lan_state["control"] is not None, "enabled": on, "port": port, "token": token if on else None,
+                "urls": urls, "error": lan_state["error"],
+                "firewall_hint": "La prima volta Windows chiede se consentire l'accesso alla rete privata: scegli «Consenti». "
+                                 "Gli altri PC devono essere sulla stessa rete (Wi-Fi/cavo di casa o del box)."}
+
+    @app.get("/api/lan")
+    def lan_get(request: Request):
+        return lan_info(request.url.port)
+
+    @app.put("/api/lan")
+    def lan_put(body: dict, request: Request):
+        if remote_client(request.client):
+            raise HTTPException(403, "solo questo PC può attivare o disattivare l'accesso di rete")
+        ctl = lan_state["control"]
+        if ctl is None:
+            raise HTTPException(409, "disponibile solo nell'app desktop (da riga di comando usa --lan)")
+        if not isinstance(body.get("enabled"), bool):
+            raise HTTPException(422, "enabled deve essere true/false")
+        lan_state["error"] = None
+        try:
+            ctl(body["enabled"])
+        except Exception as e:
+            lan_state["error"] = f"{type(e).__name__}: {e}"
+            lan_state["on"] = False
+            log.warning("LAN switch failed: %s", e)
+        return lan_info(request.url.port)
+
     @app.get("/api/display/info")
     def display_info(request: Request):
         """How to open the Driving Display (second monitor on this PC, or LAN browser). The page is served by this same backend."""
         port = request.url.port or (443 if request.url.scheme == "https" else 80)
-        q = f"?token={token}" if lan_enabled else ""
-        urls = [f"http://{ip}:{port}/driving-display{q}" for ip in _lan_ips()] if lan_enabled else []
-        return {"path": "/driving-display", "local_url": f"http://127.0.0.1:{port}/driving-display", "lan_enabled": lan_enabled, "lan_urls": urls,
-                "how_to_enable_lan": None if lan_enabled else "avvia con --lan (il token di accesso viene mostrato all'avvio)",
+        li = lan_info(port)
+        return {"path": "/driving-display", "local_url": f"http://127.0.0.1:{port}/driving-display", "lan_enabled": li["enabled"], "lan_urls": li["urls"],
+                "how_to_enable_lan": None if li["enabled"] else "attiva «Display in rete» in Impostazioni (o dal menu dell'icona vicino all'orologio)",
                 "websocket": "/ws/live (campo 'engineer')", "api": "/api/engineer/state"}
 
     @app.get("/api/endurance/status")

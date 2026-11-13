@@ -9,6 +9,7 @@ import Driver from './components/Driver'
 import SetupAdvisor from './components/SetupAdvisor'
 import TrackAnalysis from './components/TrackAnalysis'
 import AiSettings from './components/AiSettings'
+import LanSettings from './components/LanSettings'
 import DisplayInfo from './components/DisplayInfo'
 
 const SECTIONS: [string, string, number | null][] = [
@@ -67,8 +68,8 @@ function Overview({ health, go }: { health: any; go: (s: string) => void }) {
 function Settings({ health }: { health: any }) {
   return (<>
     <section className="panel"><h2>Settings</h2>
-      <div className="row"><span>Accesso LAN</span><span>{health?.lan_enabled ? 'ATTIVO (token richiesto)' : 'disattivato (solo localhost)'}</span></div>
-      <p className="mut">LAN si attiva solo avviando il backend con <code>--lan</code>.</p>
+      <div className="row"><span>Accesso LAN</span><span>{health?.lan_enabled ? 'ATTIVO (token richiesto)' : 'disattivato (solo questo PC)'}</span></div>
     </section>
+    <LanSettings />
     <AiSettings /></>)
 }

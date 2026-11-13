@@ -7,6 +7,7 @@ Windows is the target platform; the code is platform neutral and has been smoke-
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import socket
 import sys
@@ -46,8 +47,14 @@ class Backend:
         with socket.socket() as s:        # pick a free port (loopback unless LAN mode)
             s.bind(("0.0.0.0" if lan else "127.0.0.1", port)); self.port = s.getsockname()[1]
         self.lan = lan
-        app = create_app(self.engine, self.catalog, lan_enabled=lan, install=None if synthetic else find_install())
+        self._lan_file = root / "lan.json"
+        self._lan_cfg = self._load_lan_cfg()
+        app = create_app(self.engine, self.catalog, lan_enabled=lan, token=self._lan_cfg.get("token"),
+                         install=None if synthetic else find_install())
         self.app, self.token = app, app.state.token
+        self._lan_server = None
+        app.state.lan["control"] = self.set_lan_access
+        self._save_lan_cfg()
         # LAN mode is an explicit opt-in (off by default): bind all interfaces, every /api and /ws call then needs the token
         self.server = uvicorn.Server(uvicorn.Config(app, host="0.0.0.0" if lan else "127.0.0.1", port=self.port, log_level="warning",
                                                   log_config=None))   # windowed exe has no stdout/stderr: uvicorn's default colour formatter would crash ("Unable to configure formatter 'default'")
@@ -58,6 +65,61 @@ class Backend:
             time.sleep(0.05)
         if not self.server.started:
             raise RuntimeError("backend did not start")
+
+    # ---- LAN access on/off (in-app switch; no command line). A second listener on all interfaces serves the SAME app; every call from
+    # a remote PC needs the token and is refused while the switch is off, the loopback listener is never changed.
+    def _load_lan_cfg(self) -> dict:
+        try:
+            d = json.loads(self._lan_file.read_text(encoding="utf-8"))
+            return d if isinstance(d, dict) else {}
+        except (OSError, ValueError):
+            return {}
+
+    def _save_lan_cfg(self) -> None:
+        self._lan_cfg.update(token=self.token, enabled=bool(self._lan_server))
+        try:
+            self._lan_file.write_text(json.dumps(self._lan_cfg), encoding="utf-8")
+            if sys.platform != "win32":
+                os.chmod(self._lan_file, 0o600)
+        except OSError:
+            pass
+
+    def set_lan_access(self, enabled: bool) -> None:
+        import uvicorn
+        state = self.app.state.lan
+        if not enabled:
+            srv, self._lan_server = self._lan_server, None
+            state["on"] = False
+            if srv:
+                srv.should_exit = True
+                self._lan_thread.join(5)
+            self._save_lan_cfg()
+            return
+        if self._lan_server:
+            return
+        want = int(self._lan_cfg.get("port") or 47653)
+        last: Exception | None = None
+        for port in (want, 0):             # preferred fixed port (stable bookmark on the other screen), else any free one
+            try:
+                with socket.socket() as s:
+                    s.bind(("0.0.0.0", port)); port = s.getsockname()[1]
+            except OSError as e:
+                last = e
+                continue
+            srv = uvicorn.Server(uvicorn.Config(self.app, host="0.0.0.0", port=port, log_level="warning", log_config=None))
+            th = threading.Thread(target=srv.run, daemon=True, name="uvicorn-lan")
+            th.start()
+            t0 = time.time()
+            while not srv.started and th.is_alive() and time.time() - t0 < 10:
+                time.sleep(0.05)
+            if srv.started:
+                self._lan_server, self._lan_thread = srv, th
+                self._lan_cfg["port"] = port
+                state.update(on=True, port=port)
+                self._save_lan_cfg()
+                return
+            last = RuntimeError(f"porta {port} non disponibile")
+        raise last or RuntimeError("impossibile aprire la rete")
 
     def _run_game(self):
         while not self._stop_game.is_set() and self.game.step():
@@ -72,14 +134,17 @@ class Backend:
         return f"http://127.0.0.1:{self.port}/driving-display" + (f"?token={self.token}" if self.lan else "")
 
     def lan_display_urls(self) -> list[str]:
-        if not self.lan:
+        st = self.app.state.lan
+        if not st["on"]:
             return []
         from ..api.app import _lan_ips
-        return [f"http://{ip}:{self.port}/driving-display?token={self.token}" for ip in _lan_ips()]
+        return [f"http://{ip}:{st['port'] or self.port}/driving-display?token={self.token}" for ip in _lan_ips()]
 
     def stop(self):
         if self.game:
             self._stop_game.set()
+        if self._lan_server:
+            self._lan_server.should_exit = True
         self.server.should_exit = True
         self.thread.join(10)
         self.engine.stop()
@@ -190,16 +255,20 @@ def run(argv=None) -> int:
         dw.raise_()
         return dw
 
-    def show_lan():
-        urls = backend.lan_display_urls()
-        if not backend.lan:
-            QMessageBox.information(None, "Driving Display in rete", "L'accesso dalla rete locale è disattivato (predefinito).\n"
-                                    "Riavvia l'app con l'opzione --lan per attivarlo: l'indirizzo sarà del tipo\nhttp://IP-DEL-PC:PORTA/driving-display?token=…")
+    def toggle_lan(checked: bool):
+        try:
+            backend.set_lan_access(bool(checked))
+        except Exception as e:
+            act_lan.setChecked(False)
+            QMessageBox.warning(None, "Display in rete", f"Non riesco ad aprire l'accesso di rete: {e}")
             return
-        txt = "\n".join(urls) or "Nessun indirizzo di rete privato trovato."
-        QApplication.clipboard().setText(urls[0] if urls else "")
-        QMessageBox.information(None, "Driving Display in rete", "Apri uno di questi indirizzi dal browser del Raspberry/tablet (copiato negli appunti il primo).\n"
-                                "L'indirizzo contiene il token di accesso: tienilo privato.\n\n" + txt)
+        if checked:
+            urls = backend.lan_display_urls()
+            QApplication.clipboard().setText(urls[0] if urls else "")
+            QMessageBox.information(None, "Display in rete attivo",
+                                    "Apri uno di questi indirizzi dal browser dell'altro PC/tablet (il primo è già negli appunti).\n"
+                                    "L'indirizzo contiene il token di accesso: tienilo privato.\n"
+                                    "Se Windows chiede il permesso di rete, scegli «Consenti» (rete privata).\n\n" + ("\n".join(urls) or "Nessun indirizzo di rete privato trovato."))
 
     def show_main():
         win.showNormal(); win.raise_(); win.activateWindow()
@@ -233,7 +302,8 @@ def run(argv=None) -> int:
     act_auto = QAction("Avvia con Windows (ridotto a icona)"); act_auto.setCheckable(True); act_auto.setChecked(autostart.is_enabled())
     act_auto.triggered.connect(toggle_autostart)
     act_disp = QAction("Apri Driving Display (secondo monitor)"); act_disp.triggered.connect(lambda: open_display())
-    act_lan = QAction("Driving Display in rete (indirizzo LAN)…"); act_lan.triggered.connect(lambda: show_lan())
+    act_lan = QAction("Display in rete (LAN) — ON/OFF"); act_lan.setCheckable(True); act_lan.setChecked(bool(backend.app.state.lan["on"]))
+    act_lan.toggled.connect(toggle_lan)
     act_quit = QAction("Esci"); act_quit.triggered.connect(lambda: do_quit())
     menu.addAction(act_ver); menu.addSeparator()
     menu.addAction(act_open); menu.addAction(act_disp); menu.addAction(act_lan); menu.addSeparator()

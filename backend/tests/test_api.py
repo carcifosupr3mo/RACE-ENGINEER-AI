@@ -85,3 +85,35 @@ def test_cross_site_origin_is_rejected_on_loopback(live, catalog):
     assert c.get("/api/status", headers={"Sec-Fetch-Site": "cross-site"}).status_code == 403
     assert c.get("/api/status", headers={"Origin": "http://127.0.0.1:8765"}).status_code == 200
     assert c.get("/api/status", headers={"Sec-Fetch-Site": "same-origin"}).status_code == 200
+
+
+def test_runtime_lan_switch_gates_remote_clients(live, catalog):
+    """In-app ON/OFF: a remote PC (non-loopback source address) is refused while LAN is off, needs the token while on;
+    only this PC may flip the switch; the local app keeps working without a token either way."""
+    _, e = live
+    app = create_app(e, catalog, token="tok-123456", install=LmuInstall())
+    state = app.state.lan
+    calls = []
+    state["control"] = lambda on: (calls.append(on), state.update(on=on, port=47653 if on else None))
+    local = TestClient(app, base_url="http://127.0.0.1")
+    remote = TestClient(app, base_url="http://192.168.1.5:47653", client=("192.168.1.5", 50000))
+    assert local.get("/api/lan").json()["enabled"] is False
+    assert remote.get("/api/status?token=tok-123456").status_code == 403          # off: even the right token is refused
+    assert remote.put("/api/lan", json={"enabled": True}).status_code == 403
+    r = local.put("/api/lan", json={"enabled": True}).json()
+    assert r["enabled"] is True and r["token"] == "tok-123456" and calls == [True]
+    assert local.get("/api/status").status_code == 200                              # local app unaffected, no token needed
+    assert remote.get("/api/status").status_code == 403
+    assert remote.get("/api/status", headers={"Authorization": "Bearer nope"}).status_code == 403
+    assert remote.get("/api/status?token=tok-123456").status_code == 200
+    assert remote.put("/api/lan?token=tok-123456", json={"enabled": False}).status_code == 403   # a remote PC cannot switch it
+    assert local.put("/api/lan", json={"enabled": "yes"}).status_code == 422
+    local.put("/api/lan", json={"enabled": False})
+    assert remote.get("/api/status?token=tok-123456").status_code == 403
+
+
+def test_lan_switch_unavailable_without_desktop_shell(live, catalog):
+    _, e = live
+    c = client(e, catalog)
+    assert c.get("/api/lan").json()["available"] is False
+    assert c.put("/api/lan", json={"enabled": True}).status_code == 409

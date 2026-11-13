@@ -14,7 +14,7 @@ export default function DisplayInfo() {
       <h3>Browser in rete locale (Raspberry Pi, tablet)</h3>
       {i?.lan_enabled
         ? <>{(i.lan_urls || []).map((u: string) => <div key={u}><code>{u}</code></div>)}<p className="mut">L'indirizzo contiene il token di accesso: tienilo privato. Il Raspberry mostra soltanto i risultati calcolati dal PC.</p></>
-        : <p className="mut" data-testid="display-lan-off">Accesso dalla rete locale disattivato (predefinito, solo questo PC). Per attivarlo: <code>race-engineer-cli serve --lan</code> — l'indirizzo completo viene stampato all'avvio, nel formato <code>http://IP-DEL-PC:PORTA/driving-display?token=…</code>.</p>}
+        : <p className="mut" data-testid="display-lan-off">Accesso dalla rete locale disattivato (predefinito, solo questo PC). Per attivarlo vai in <b>Impostazioni → Display in rete (LAN)</b> e premi «Accendi» (o usa la voce ON/OFF nel menu dell'icona vicino all'orologio): l'indirizzo da aprire sull'altro schermo compare lì.</p>}
       <p className="mut">Endpoint condivisi: <code>{i?.api ?? '/api/engineer/state'}</code> · WebSocket <code>/ws/live</code> (campo <code>engineer</code>).</p>
     </section>)
 }
