@@ -270,3 +270,30 @@ def test_api_key_endpoint_never_echoes_key(tmp_path, monkeypatch):
     assert c.put("/api/ai/providers/key", json={"provider": "other", "key": "xxxxxxxxxx"}).status_code == 422
     r = c.put("/api/ai/settings", json={"enabled": True, "mode": "free_multi", "providers": [], "free_multi": {"api_key": "x"}})
     assert r.status_code == 422
+
+
+def test_empty_completion_from_reasoning_model_is_retried_with_more_tokens():
+    """A reasoning model that spends the whole budget thinking returns content=null/finish=length: retry once with room to answer."""
+    from race_engineer.ai.providers import NVIDIAAdapter
+    from race_engineer.ai.providers.types import ProviderError
+    seen = []
+
+    def handler(req):
+        import json
+        mt = json.loads(req.content)["max_tokens"]
+        seen.append(mt)
+        if mt < 100:
+            return httpx.Response(200, json={"choices": [{"message": {"content": None, "reasoning_content": "hmm"}, "finish_reason": "length"}],
+                                             "usage": {"prompt_tokens": 5, "completion_tokens": mt}})
+        return httpx.Response(200, json={"choices": [{"message": {"content": "OK"}, "finish_reason": "stop"}],
+                                         "usage": {"prompt_tokens": 5, "completion_tokens": 3}})
+    a = NVIDIAAdapter(["m"], transport=httpx.MockTransport(handler), key_override="k" * 12)
+    r = a.complete("m", "s", "u", 20, 5)
+    assert r.text == "OK" and seen == [20, 600] and r.tokens_out == 20 + 3
+
+    def always_empty(req):
+        return httpx.Response(200, json={"choices": [{"message": {"content": ""}, "finish_reason": "stop"}], "usage": {}})
+    b = NVIDIAAdapter(["m"], transport=httpx.MockTransport(always_empty), key_override="k" * 12)
+    with pytest.raises(ProviderError) as ei:
+        b.complete("m", "s", "u", 20, 5)
+    assert ei.value.kind == "bad_response"

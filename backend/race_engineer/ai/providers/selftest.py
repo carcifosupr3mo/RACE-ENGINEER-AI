@@ -11,9 +11,10 @@ from .manager import AIProviderManager
 from .types import ProviderError
 
 HOWTO = {
-    "nvidia": "Create a key at build.nvidia.com (API key for the model), then set the environment variable NVIDIA_API_KEY "
-              "or store it in Windows Credential Manager from the app (Settings > AI > Salva chiave).",
-    "groq": "Create a key at console.groq.com (free plan, no card), then set GROQ_API_KEY or store it from the app.",
+    "nvidia": "Crea una chiave su build.nvidia.com (pulsante «Get API Key» sul modello), poi incollala in Impostazioni > AI > «Salva chiave» "
+              "(oppure imposta la variabile NVIDIA_API_KEY).",
+    "groq": "Crea una chiave gratuita (senza carta) su https://console.groq.com/keys → «Create API Key», poi incollala in "
+            "Impostazioni > AI > «Salva chiave» (oppure imposta GROQ_API_KEY).",
 }
 
 
@@ -45,7 +46,7 @@ def run(manager: AIProviderManager, send: bool = True) -> dict:
             else:
                 t0 = time.monotonic()
                 try:
-                    resp = a.complete(r.model, "You are a connectivity test.", "Reply with the single word OK.", 20, manager.timeout_s)
+                    resp = a.complete(r.model, "You are a connectivity test.", "Reply with the single word OK.", 256, manager.timeout_s)
                     manager.quota.record(a.name, r.model, resp.tokens_in + resp.tokens_out)
                     manager.quota.note_headers(a.name, r.model, a.last_headers)
                     row.update(tested=True, ok=True, latency_s=round(time.monotonic() - t0, 2), tokens=resp.tokens_in + resp.tokens_out,

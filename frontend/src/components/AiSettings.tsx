@@ -3,6 +3,23 @@ import { api } from '../lib/api'
 
 const post = (path: string, body?: any, method = 'POST') => api(path, { method, headers: { 'content-type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) })
 
+const KEY_LINK: Record<string, [string, string]> = {
+  nvidia: ['https://build.nvidia.com/settings/api-keys', 'build.nvidia.com'],
+  groq: ['https://console.groq.com/keys', 'console.groq.com/keys'],
+}
+const ERR_IT: Record<string, string> = {
+  auth: 'chiave non valida o scaduta: creane una nuova',
+  quota: 'quota gratuita esaurita',
+  rate_limit: 'troppe richieste: riprova tra poco',
+  model_unavailable: 'modello non disponibile per questo account',
+  timeout: 'il servizio non ha risposto in tempo',
+  network: 'rete non raggiungibile',
+  server: 'errore temporaneo del servizio',
+  bad_response: 'risposta vuota o non valida dal modello',
+  bad_request: 'richiesta rifiutata dal servizio',
+  blocked: 'modello non nella lista dei modelli gratuiti consentiti',
+}
+
 export default function AiSettings() {
   const [prov, setProv] = useState<any>(null)
   const [cfg, setCfg] = useState<any>(null)
@@ -39,7 +56,7 @@ export default function AiSettings() {
       <div className="row"><span>Provider AI online</span><span><button onClick={toggle} data-testid="ai-toggle">{enabled ? 'Disattiva' : 'Attiva'}</button> {enabled ? 'ATTIVO' : 'disattivato (solo locale)'}</span></div>
       {['nvidia', 'groq'].map(p => (
         <div className="row" key={p}>
-          <span>{p.toUpperCase()} — {prov?.keys?.[p]?.configured ? <span className="ok">chiave presente ({prov.keys[p].source})</span> : <span className="warn">chiave mancante</span>}</span>
+          <span>{p.toUpperCase()} — {prov?.keys?.[p]?.configured ? <span className="ok">chiave presente ({prov.keys[p].source})</span> : <span className="warn">chiave mancante — <a href={KEY_LINK[p][0]} target="_blank" rel="noreferrer">crea la chiave su {KEY_LINK[p][1]} ↗</a></span>}</span>
           <span><input type="password" autoComplete="off" placeholder="incolla la chiave" value={keys[p]} onChange={e => setKeys({ ...keys, [p]: e.target.value })} data-testid={'key-' + p} />
             <button disabled={keys[p].length < 8} onClick={() => save(p)}>Salva</button></span>
         </div>))}
@@ -49,7 +66,7 @@ export default function AiSettings() {
         <p><b>{test.summary}</b></p>
         {test.routes.map((r: any) => (
           <div className="row" key={r.route}><span>{r.route}</span>
-            <span>{!r.configured ? <span className="warn">{r.how_to}</span> : r.ok ? <span className="ok">OK · {r.latency_s}s · {r.tokens} token</span> : r.tested ? <span className="bad">{r.error_kind}: {r.error}</span> : <span className="warn">{r.skipped || 'non provato'}</span>}</span></div>))}
+            <span>{!r.configured ? <span className="warn">{r.how_to}</span> : r.ok ? <span className="ok">OK · {r.latency_s}s · {r.tokens} token</span> : r.tested ? <span className="bad">{ERR_IT[r.error_kind] ?? r.error_kind}<small className="mut"> ({r.error_kind}{r.http_status ? ' ' + r.http_status : ''}: {r.error})</small></span> : <span className="warn">{r.skipped || 'non provato'}</span>}</span></div>))}
       </div>}
       {prov && <details><summary>Stato route e quote</summary>
         {prov.routes.map((r: any) => <div className="row" key={r.route}><span>{r.route}</span><span className="mono">{r.configured ? (r.blocked_reason ? 'bloccata: ' + r.blocked_reason : 'pronta') : 'senza chiave'} · {r.usage.rpd}/{r.usage.limits.rpd ?? '∞'} richieste/giorno</span></div>)}

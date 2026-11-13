@@ -83,9 +83,25 @@ class OpenAICompatAdapter:
     def complete(self, model: str, system: str, user: str, max_tokens: int, timeout_s: float) -> AIResponse:
         if model not in self.allowed:        # hard guard: never call a model that is not an explicitly allowed FREE model
             raise ProviderError("blocked", f"model {model!r} is not in the allowed free-model list")
+        t0 = time.monotonic()
+        budget, tin, tout = max_tokens, 0, 0
+        for attempt in (1, 2):
+            text, finish, usage = self._post(model, system, user, budget, timeout_s)
+            tin += int(usage.get("prompt_tokens", 0)); tout += int(usage.get("completion_tokens", 0))
+            if text:
+                return AIResponse(text, self.name, model, tin, tout, time.monotonic() - t0)
+            if attempt == 1 and finish == "length":
+                # reasoning models spend the whole token budget "thinking" and return no visible answer: retry once with room to answer
+                budget = max(max_tokens * 4, 600)
+                continue
+            break
+        why = ("il modello ha esaurito i token nel ragionamento senza dare una risposta" if finish == "length"
+               else "il modello ha risposto con un testo vuoto")
+        raise ProviderError("bad_response", f"empty completion ({why}; finish_reason={finish})")
+
+    def _post(self, model: str, system: str, user: str, max_tokens: int, timeout_s: float) -> tuple[str, str | None, dict]:
         body = {"model": model, "temperature": 0.2, "max_tokens": max_tokens, "stream": False,
                 "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}], **self.extra_body}
-        t0 = time.monotonic()
         try:
             with httpx.Client(timeout=timeout_s, transport=self._transport) as c:
                 r = c.post(self.base_url + "/chat/completions", json=body, headers={"Authorization": f"Bearer {self._key()}"})
@@ -98,13 +114,11 @@ class OpenAICompatAdapter:
             raise classify_http(r.status_code, r.text, r.headers)
         try:
             d = r.json()
-            text = _THINK.sub("", d["choices"][0]["message"].get("content") or "").strip()
-            u = d.get("usage") or {}
-        except (ValueError, KeyError, IndexError, TypeError):
+            ch = d["choices"][0]
+            text = _THINK.sub("", ch["message"].get("content") or "").strip()
+            return text, ch.get("finish_reason"), d.get("usage") or {}
+        except (ValueError, KeyError, IndexError, TypeError, AttributeError):
             raise ProviderError("bad_response", "unparseable completion")
-        if not text:
-            raise ProviderError("bad_response", "empty completion")
-        return AIResponse(text, self.name, model, int(u.get("prompt_tokens", 0)), int(u.get("completion_tokens", 0)), time.monotonic() - t0)
 
 
 class NVIDIAAdapter(OpenAICompatAdapter):
