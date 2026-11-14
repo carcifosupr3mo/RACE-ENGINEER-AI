@@ -86,7 +86,7 @@ def sha256(p: Path) -> str:
 
 def write_checksums():
     files = [Path(archive), *sorted((root / "dist").glob("RaceEngineerAI-Setup-*.exe"))]
-    (root / "dist" / "SHA256SUMS.txt").write_text("".join(f"{sha256(f)}  {f.name}\n" for f in files), encoding="utf-8")
+    (root / "dist" / "SHA256SUMS.txt").write_text(f"# release {__version__}\n" + "".join(f"{sha256(f)}  {f.name}\n" for f in files), encoding="utf-8")   # first line binds the (signed) list to ONE version: anti-replay
     print((root / "dist" / "SHA256SUMS.txt").read_text())
 
 

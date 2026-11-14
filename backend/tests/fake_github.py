@@ -21,8 +21,8 @@ def make_zip(files: dict[str, bytes]) -> bytes:
     return b.getvalue()
 
 
-def good_package(marker: str = "new") -> bytes:
-    return make_zip({"RaceEngineerAI.exe": f"#!/bin/sh\nexit 0\n# {marker}\n".encode(), "RaceEngineerUpdater.exe": b"updater", "_internal/lib.dll": __import__("os").urandom(20000), "build_info.json": b"{}"})
+def good_package(marker: str = "new", version: str = "0.7.0") -> bytes:
+    return make_zip({"RaceEngineerAI.exe": f"#!/bin/sh\nexit 0\n# {marker}\n".encode(), "RaceEngineerUpdater.exe": b"updater", "_internal/lib.dll": __import__("os").urandom(20000), "build_info.json": json.dumps({"version": version}).encode()})
 
 
 class FakeGithub:
@@ -30,7 +30,7 @@ class FakeGithub:
                  drop_times: int = 1, status: int = 200, tamper: bool = False, slow: float = 0.0):
         self.package = package if package is not None else good_package()
         self.sha = hashlib.sha256(self.package).hexdigest()
-        self.sums = sums if sums is not None else f"{self.sha}  RaceEngineerAI-win32.zip\n"
+        self.sums = sums if sums is not None else f"# release 0.7.0\n{self.sha}  RaceEngineerAI-win32.zip\n"
         self.drop_after, self.drops_left, self.status, self.tamper, self.slow = drop_after, drop_times, status, tamper, slow
         self.requests: list[tuple[str, str | None]] = []
         self.releases = releases

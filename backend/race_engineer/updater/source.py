@@ -134,6 +134,12 @@ def parse_sums(text: str) -> dict[str, str]:
     return out
 
 
+def declared_release(text: str) -> str | None:
+    """The version the checksum list says it belongs to (line ``# release X.Y.Z``, written by the build and covered by the signature)."""
+    m = re.search(r"^# release (\d+\.\d+\.\d+)\s*$", text, re.M)
+    return m[1] if m else None
+
+
 def read_small(url: str, policy: Policy, timeout: float = 15.0, limit: int = 1_000_000) -> str:
     try:
         with _open(url, policy, timeout, {"Accept": "application/octet-stream"}, asset=True) as r:

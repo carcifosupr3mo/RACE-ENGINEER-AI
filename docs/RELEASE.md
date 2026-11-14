@@ -30,3 +30,6 @@ Verifica a mano: `Get-FileHash .\RaceEngineerAI-win32.zip -Algorithm SHA256` dev
 - **Limite**: se la chiave privata viene rubata o persa, serve rilasciare a mano una nuova versione con una nuova chiave pubblica. Un secret di GitHub è leggibile da chi può modificare i workflow: proteggi il branch e i permessi.
 - **Firma del codice Windows (Authenticode)**: non c'è certificato; Windows SmartScreen può mostrare un avviso. Il supporto in build esiste (`WINDOWS_SIGN_PFX_BASE64`) ma serve un certificato a pagamento: decisione tua.
 - Altre difese già presenti: solo HTTPS e host GitHub (anche dopo i redirect), solo release stabili, estrazione anti zip-slip, controllo spazio disco, backup per rinomina e rollback automatico.
+
+## Protezione contro il replay (da 0.7.0)
+`SHA256SUMS.txt` inizia con la riga `# release X.Y.Z` (scritta dalla build, coperta dalla firma). L'app rifiuta (`version_mismatch`) se: la riga non coincide con la versione della release; la riga manca e la firma è obbligatoria; il `build_info.json` dentro il pacchetto (autenticato dall'hash) dichiara un'altra versione. Così una vecchia lista/pacchetto, anche firmati, non si possono ripresentare sotto un tag più nuovo. Il workflow `release` controlla la stessa cosa prima di pubblicare. Limite: senza chiave embedded questa è comunque una difesa di coerenza, non di autenticità.

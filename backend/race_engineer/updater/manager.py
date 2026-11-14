@@ -211,6 +211,10 @@ class UpdateManager:
                     sig_text = None
             if not signing.check_sums(sums_text, sig_text):
                 raise UpdateError("bad_signature", "La release non ha una firma valida del progetto: per sicurezza non la installo.")
+        # anti-replay: the (signed) list names the release it belongs to; an old list/package re-attached to a newer tag is refused
+        declared = source.declared_release(sums_text)
+        if (declared is None and signing.enforced()) or (declared is not None and declared != rel.version_str):
+            raise UpdateError("version_mismatch", "I file della release non corrispondono alla versione annunciata: per sicurezza non li installo.")
         sums = source.parse_sums(sums_text)
         want = sums.get(PACKAGE_NAME[self.platform])
         if not want:
@@ -281,6 +285,17 @@ class UpdateManager:
             zpath.unlink(missing_ok=True)
             raise UpdateError("bad_package", "Il pacchetto scaricato è danneggiato. Non è stato installato nulla: riprova più tardi.") from e
         zpath.unlink(missing_ok=True)            # the extracted copy is all that is needed from here
+        self._check_package_version(staging, rel)
+
+    def _check_package_version(self, staging: Path, rel: Release) -> None:
+        """The package (authenticated by its hash) must be the version the release announces: no old build under a new tag."""
+        try:
+            got = json.loads((staging / "build_info.json").read_text(encoding="utf-8")).get("version")
+        except (OSError, ValueError, AttributeError):
+            got = None
+        if (got is None and signing.enforced()) or (got is not None and got != rel.version_str):
+            shutil.rmtree(staging, ignore_errors=True)
+            raise UpdateError("version_mismatch", "Il pacchetto non è la versione annunciata dalla release: per sicurezza non lo installo.")
 
     def _hand_over(self, rel: Release, folder: Path) -> None:
         self._set(state="installing", step=4, progress=1.0, message="Installazione: l'app si chiude e si riapre da sola…")

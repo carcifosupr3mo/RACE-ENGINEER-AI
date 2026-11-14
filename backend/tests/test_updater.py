@@ -391,3 +391,50 @@ def test_without_embedded_key_signature_is_not_required(catalog, tmp_path, gh):
     m = manager(catalog, gh, tmp_path)
     m.check(); m.start_install()
     assert wait_done(m)["state"] == "restarting"
+
+
+# ------------------------------------------------------------------------------- anti-replay: signature/package bound to the version
+def _enforce(monkeypatch, tmp_path, gh):
+    from race_engineer.updater import signing
+    pem, pub = _keypair(tmp_path)
+    monkeypatch.setattr(signing, "PUBLIC_KEY_HEX", pub)
+    gh.sig = _sign(tmp_path, pem, gh.sums)
+
+
+def test_old_signed_release_replayed_under_a_newer_tag_is_refused(catalog, tmp_path, monkeypatch):
+    old = good_package(version="0.6.9")
+    g = FakeGithub(package=old, sums=f"# release 0.6.9\n{__import__('hashlib').sha256(old).hexdigest()}  RaceEngineerAI-win32.zip\n")
+    _enforce(monkeypatch, tmp_path, g)                           # genuinely signed by the maintainer ... for 0.6.9
+    m = manager(catalog, g, tmp_path)                            # but the release says v0.7.0
+    m.check(); m.start_install()
+    st = wait_done(m)
+    assert st["state"] == "error" and st["error_code"] == "version_mismatch" and not m.calls
+    g.close()
+
+
+def test_signed_list_without_version_line_is_refused_when_signature_is_enforced(catalog, tmp_path, monkeypatch):
+    pkg = good_package()
+    g = FakeGithub(package=pkg, sums=f"{__import__('hashlib').sha256(pkg).hexdigest()}  RaceEngineerAI-win32.zip\n")
+    _enforce(monkeypatch, tmp_path, g)
+    m = manager(catalog, g, tmp_path)
+    m.check(); m.start_install()
+    assert wait_done(m)["error_code"] == "version_mismatch" and not m.calls
+    g.close()
+
+
+def test_package_of_another_version_is_refused_even_with_correct_hash(catalog, tmp_path):
+    old = good_package(version="0.6.9")                          # list says 0.7.0 and hash matches, but the build inside is 0.6.9
+    g = FakeGithub(package=old, sums=f"# release 0.7.0\n{__import__('hashlib').sha256(old).hexdigest()}  RaceEngineerAI-win32.zip\n")
+    m = manager(catalog, g, tmp_path)
+    m.check(); m.start_install()
+    st = wait_done(m)
+    assert st["error_code"] == "version_mismatch" and not m.calls
+    assert not list((tmp_path / "work").rglob("staging"))        # nothing left to be installed
+    g.close()
+
+
+def test_signed_matching_release_still_installs(catalog, tmp_path, gh, monkeypatch):
+    _enforce(monkeypatch, tmp_path, gh)
+    m = manager(catalog, gh, tmp_path)
+    m.check(); m.start_install()
+    assert wait_done(m)["state"] == "restarting" and m.calls

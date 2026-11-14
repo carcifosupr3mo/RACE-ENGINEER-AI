@@ -1,5 +1,6 @@
 # CHANGELOG
 ## Non rilasciato — audit finale (fase 2)
+- **Anti-replay**: `SHA256SUMS.txt` porta `# release X.Y.Z`; l'app verifica lista e `build_info.json` del pacchetto contro la versione della release (`version_mismatch`). Test dedicati.
 - **Smoke desktop**: la CI Windows aveva segnalato titolo vuoto nel controllo dell'interfaccia; ora il controllo attende il rendering (fino a ~40 s) e stampa diagnostica della pagina.
 - **Firma Ed25519 di `SHA256SUMS.txt`** (`updater/signing.py`, solo libreria standard): attiva quando il manutentore inserisce la chiave pubblica (`PUBLIC_KEY_HEX`); da allora l'app rifiuta release senza firma valida. `scripts/make_signing_key.py`, `scripts/sign_sums.py`. Vettori RFC 8032 + OpenSSL nei test. **Chiave NON ancora generata**: oggi la protezione è SHA-256 (solo integrità).
 - **release.yml**: input passati via variabili (niente interpolazione nella shell), controlla che il run sia verde e costruito dal commit indicato, che la versione nel pacchetto coincida col tag, firma i checksum se esiste il secret `RELEASE_SIGNING_KEY_PEM`. Procedura: `docs/RELEASE.md`.

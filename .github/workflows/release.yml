@@ -33,7 +33,10 @@ jobs:
       - name: Verify checksums and that the version inside the package matches the tag
         env: { TAG: "${{ inputs.tag }}" }
         run: |
-          cd dist && sha256sum -c SHA256SUMS.txt && ls -l
+          cd dist && grep -v '^#' SHA256SUMS.txt | sha256sum -c && ls -l
+          declared=$(sed -n 's/^# release \([0-9.]*\)\s*$/\1/p' SHA256SUMS.txt | head -1)
+          base="${TAG#v}"; base="${base%%-*}"
+          [ "$declared" = "$base" ] || { echo "SHA256SUMS.txt declares release '$declared' but the tag is $TAG: refusing (anti-replay)."; exit 1; }
           unzip -p RaceEngineerAI-win32.zip build_info.json > /tmp/bi.json
           pkg=$(python3 -c "import json;print(json.load(open('/tmp/bi.json')).get('version',''))")
           base="${TAG#v}"; base="${base%%-*}"
