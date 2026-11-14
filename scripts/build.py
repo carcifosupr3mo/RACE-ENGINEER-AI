@@ -30,11 +30,15 @@ if "--skip-tests" not in sys.argv:
     run([sys.executable, "-m", "pytest", "tests"], root / "backend")
 run([sys.executable, "-m", "PyInstaller", "packaging/race_engineer.spec", "--noconfirm", "--distpath", "dist", "--workpath", "build"])
 out = root / "dist" / "RaceEngineerAI"
-signed = sign_windows.sign([e for e in (out / "RaceEngineerAI.exe", out / "race-engineer-cli.exe") if e.exists()], SIGN)   # before smoke/zip/installer: what is tested is what ships
+_upd = next((f for f in (root / "dist").glob("RaceEngineerUpdater*") if f.is_file()), None)      # separate updater program (see packaging/race_engineer.spec)
+if _upd is None:
+    raise SystemExit("RaceEngineerUpdater was not built: in-app updates would not work")
+shutil.copy2(_upd, out / _upd.name)
+signed = sign_windows.sign([e for e in (out / "RaceEngineerAI.exe", out / "race-engineer-cli.exe", out / "RaceEngineerUpdater.exe") if e.exists()], SIGN)   # before smoke/zip/installer: what is tested is what ships
 for bat in [*(root / "scripts" / "windows").glob("*.bat"), *(root / "scripts" / "windows").glob("*.ps1"), *(root / "scripts" / "windows").glob("hud_annotazioni_*.json")]:          # verification tools next to the exe (used on the Windows PC)
     shutil.copy2(bat, out / bat.name)
 (out / "docs").mkdir(exist_ok=True)
-for d in ("README.md", "docs/VALIDATION.md", "docs/INSTALLATION.md", "docs/AI-PROVIDERS.md", "docs/LMU-INTEGRATION.md", "docs/WINDOWS-PROCEDURA.md", "docs/CODE-SIGNING.md"):
+for d in ("README.md", "docs/VALIDATION.md", "docs/INSTALLATION.md", "docs/AI-PROVIDERS.md", "docs/LMU-INTEGRATION.md", "docs/WINDOWS-PROCEDURA.md", "docs/CODE-SIGNING.md", "docs/UPDATES.md"):
     shutil.copy2(root / d, out / "docs" / Path(d).name)
 shutil.copy2(root / "packaging" / "icon.ico", out / "icon.ico")
 def _commit():

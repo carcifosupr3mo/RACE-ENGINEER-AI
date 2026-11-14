@@ -49,8 +49,12 @@ class Backend:
         self.lan = lan
         self._lan_file = root / "lan.json"
         self._lan_cfg = self._load_lan_cfg()
+        from .. import __version__ as _ver
+        from ..updater.manager import UpdateManager
+        self.quit_request = threading.Event()          # set by the updater when the app must close so the new version can be installed
+        self.updater = UpdateManager(self.catalog, _ver, root, quit_cb=self.quit_request.set)
         app = create_app(self.engine, self.catalog, lan_enabled=lan, token=self._saved_token(),
-                         install=None if synthetic else find_install())
+                         install=None if synthetic else find_install(), updater=self.updater)
         self.app, self.token = app, app.state.token
         self._lan_server = None
         app.state.lan["control"] = self.set_lan_access
@@ -347,6 +351,10 @@ def run(argv=None) -> int:
     last = {"s": None}
 
     def watch():
+        if backend.quit_request.is_set() and not quitting["v"]:      # the updater asked to close: recording is saved by do_quit()
+            log.info("closing for an update")
+            do_quit()
+            return
         st = backend.engine.state
         if st != last["s"]:
             if last["s"] is not None and st in (ConnState.ACQUIRING, ConnState.SESSION_ENDED, ConnState.ERROR, ConnState.SHM_CONNECTED):
@@ -358,6 +366,8 @@ def run(argv=None) -> int:
     timer = QTimer(); timer.timeout.connect(watch); timer.start(1000)
 
     log.info("started: version %s, port %s, lan %s", __version__, backend.port, backend.lan)
+    if not args.smoke and not args.synthetic:
+        backend.updater.check_in_background()      # every start: look for a newer STABLE release (silently skipped without Internet)
     if not args.start_minimized and not args.smoke:
         win.show()
     if not args.smoke and (args.display or (args.display_auto and len(QGuiApplication.screens()) > 1)):

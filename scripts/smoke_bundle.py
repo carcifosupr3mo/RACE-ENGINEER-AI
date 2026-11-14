@@ -204,6 +204,10 @@ def main():
             rec("desktop shell --smoke", False, e)
     else:
         rec("desktop shell --smoke", True, "skipped: no desktop executable in this bundle (PySide6 absent)")
+    if not source:
+        rec("separate updater program is in the bundle (in-app updates need it)", (b / f"RaceEngineerUpdater{EXE}").is_file())
+        r = subprocess.run([str(b / f"RaceEngineerUpdater{EXE}"), "--help"], capture_output=True, text=True, timeout=60)
+        rec("updater program starts (--help)", r.returncode == 0 and "--staging" in (r.stdout + r.stderr), (r.stdout + r.stderr)[-200:])
     shutil.rmtree(data, ignore_errors=True)
     bad = [n for n, ok, _ in results if not ok]
     print(f"\n{len(results) - len(bad)}/{len(results)} passed" + (f"; FAILED: {bad}" if bad else ""))

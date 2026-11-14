@@ -1,5 +1,10 @@
 import { useEffect, useState } from 'react'
 import { api } from './lib/api'
+import { SimsProvider, useSims } from './lib/sims'
+import Home from './components/Home'
+import SimMenu from './components/SimMenu'
+import UpdateGate, { UpdateBanner, useUpdate } from './components/UpdateGate'
+import Updates from './components/Updates'
 import Live from './components/Live'
 import Sessions from './components/Sessions'
 import LapAnalyzer from './components/LapAnalyzer'
@@ -12,64 +17,75 @@ import AiSettings from './components/AiSettings'
 import LanSettings from './components/LanSettings'
 import DisplayInfo from './components/DisplayInfo'
 
-const SECTIONS: [string, string, number | null][] = [
-  ['overview', 'Panoramica', null], ['live', 'Telemetria live', null], ['display', 'Display di guida', null], ['sessions', 'Sessioni', null],
-  ['laps', 'Analisi giri', null], ['track', 'Analisi circuito', null], ['ai', 'Ingegnere AI', null],
-  ['setup', 'Assetto', null], ['tyre', 'Gomme e benzina', null], ['driver', 'Crescita pilota', null], ['settings', 'Impostazioni', null],
+// [id, label, one-line description shown under the title]. Ids are stable (tests and links use them), only the words are plain Italian.
+export const SECTIONS: [string, string, string][] = [
+  ['overview', 'Home', 'Scegli il simulatore e inizia.'],
+  ['live', 'Dati in diretta', 'Cosa sta facendo l\'auto in questo momento.'],
+  ['display', 'Schermo di guida', 'Consigli su un secondo schermo mentre guidi.'],
+  ['sessions', 'Le tue sessioni', 'Tutte le guide registrate.'],
+  ['laps', 'Analisi dei giri', 'Confronta due giri e scopri dove perdi tempo.'],
+  ['track', 'Analisi del circuito', 'Le curve del circuito e come le affronti.'],
+  ['ai', 'Ingegnere di pista', 'Fai domande sulla tua guida.'],
+  ['setup', 'Assetto dell\'auto', 'Idee per regolare l\'auto.'],
+  ['tyre', 'Gomme e benzina', 'Consumi e quando fermarti ai box.'],
+  ['driver', 'I tuoi progressi', 'Come stai migliorando nel tempo.'],
+  ['settings', 'Impostazioni', 'Aggiornamenti, rete e assistente AI.'],
 ]
 
-function Planned({ phase, name }: { phase: number; name: string }) {
-  return <section className="panel"><h2>{name}</h2><p className="mut">Non ancora implementato (Fase {phase} della roadmap). Nessun dato è mostrato finché la funzione non esiste.</p></section>
+export default function App() {
+  return <SimsProvider><Shell /></SimsProvider>
 }
 
-export default function App() {
+function Shell() {
   const [sec, setSec] = useState('overview')
   const [session, setSession] = useState<string | null>(null)
   const [health, setHealth] = useState<any>(null)
+  const upd = useUpdate()
+  const { current } = useSims()
   useEffect(() => { api('/api/health').then(setHealth).catch(() => setHealth(null)) }, [])
   const openLaps = (sid: string) => { setSession(sid); setSec('laps') }
+  const meta = SECTIONS.find(s => s[0] === sec)!
   return (
     <div className="shell">
-      <nav>
+      <nav aria-label="Menu principale">
         <h1>Race Engineer <b>AI</b></h1>
-        {SECTIONS.map(([id, label, ph]) => (
-          <button key={id} className={sec === id ? 'on' : ''} onClick={() => setSec(id)} data-testid={'nav-' + id}>
-            {label}{ph ? <span className="phase">F{ph}</span> : null}
-          </button>))}
+        {SECTIONS.map(([id, label]) => (
+          <button key={id} className={sec === id ? 'on' : ''} onClick={() => setSec(id)} data-testid={'nav-' + id} aria-current={sec === id ? 'page' : undefined}>{label}</button>))}
       </nav>
-      <main>
-        {sec === 'overview' && <Overview health={health} go={setSec} />}
-        {sec === 'live' && <Live />}
-        {sec === 'display' && <DisplayInfo />}
-        {sec === 'sessions' && <Sessions onOpen={openLaps} />}
-        {sec === 'laps' && <LapAnalyzer sessionId={session} onPick={setSession} />}
-        {sec === 'setup' && <SetupAdvisor sessionId={session} onPick={setSession} />}
-        {sec === 'track' && <TrackAnalysis sessionId={session} onPick={setSession} />}
-        {sec === 'ai' && <Engineer sessionId={session} onPick={setSession} />}
-        {sec === 'tyre' && <TyreFuel sessionId={session} onPick={setSession} />}
-        {sec === 'driver' && <Driver sessionId={session} onPick={setSession} />}
-        {sec === 'settings' && <Settings health={health} />}
-        {SECTIONS.filter(s => s[2] && s[0] === sec).map(s => <Planned key={s[0]} phase={s[2]!} name={s[1]} />)}
-      </main>
+      <div className="mainwrap">
+        <header className="topbar">
+          <div><h1 className="pagetitle">{meta[1]}</h1><p className="mut small">{meta[2]}</p></div>
+          <SimMenu />
+        </header>
+        <main>
+          <UpdateBanner st={upd.st} poll={upd.poll} />
+          {sec === 'overview' && <Home go={setSec} />}
+          {sec === 'live' && <Live />}
+          {sec === 'display' && <DisplayInfo />}
+          {sec === 'sessions' && <Sessions onOpen={openLaps} />}
+          {sec === 'laps' && <LapAnalyzer sessionId={session} onPick={setSession} />}
+          {sec === 'setup' && <SetupAdvisor sessionId={session} onPick={setSession} />}
+          {sec === 'track' && <TrackAnalysis sessionId={session} onPick={setSession} />}
+          {sec === 'ai' && <Engineer sessionId={session} onPick={setSession} />}
+          {sec === 'tyre' && <TyreFuel sessionId={session} onPick={setSession} />}
+          {sec === 'driver' && <Driver sessionId={session} onPick={setSession} />}
+          {sec === 'settings' && <Settings health={health} sim={current?.name ?? null} upd={upd} />}
+        </main>
+      </div>
+      <UpdateGate st={upd.st} lost={upd.lost} poll={upd.poll} />
     </div>
   )
 }
 
-function Overview({ health, go }: { health: any; go: (s: string) => void }) {
-  return (
-    <section className="panel">
-      <h2>Panoramica</h2>
-      <p>Backend: {health ? <span className="ok">online · v{health.version} · {health.platform}</span> : <span className="bad">non raggiungibile</span>}</p>
-      <p className="mut">Stato della verifica: l'acquisizione da Le Mans Ultimate reale <b>non è ancora verificata</b>. I dati sintetici sono sempre marcati.</p>
-      <button onClick={() => go('live')}>Live Telemetry</button> <button onClick={() => go('sessions')}>Sessions</button>
-    </section>)
-}
-
-function Settings({ health }: { health: any }) {
+function Settings({ health, sim, upd }: { health: any; sim: string | null; upd: ReturnType<typeof useUpdate> }) {
   return (<>
-    <section className="panel"><h2>Impostazioni</h2>
-      <div className="row"><span>Accesso LAN</span><span>{health?.lan_enabled ? 'ATTIVO (token richiesto)' : 'disattivato (solo questo PC)'}</span></div>
+    <section className="panel"><h2>Il tuo simulatore</h2>
+      <div className="row"><span>Simulatore in uso</span><b>{sim ?? 'Nessuno scelto'}</b></div>
+      <p className="help">Per cambiarlo usa il menu «Simulatore» in alto a destra. La scelta viene ricordata ogni volta che apri l'app, anche dopo un aggiornamento.</p>
+      <div className="row"><span>Accesso da altri dispositivi</span><span>{health?.lan_enabled ? 'Attivo (serve un codice)' : 'Spento: solo questo PC'}</span></div>
     </section>
+    <Updates st={upd.st} poll={upd.poll} />
     <LanSettings />
-    <AiSettings /></>)
+    <AiSettings />
+  </>)
 }

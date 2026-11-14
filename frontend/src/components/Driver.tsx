@@ -22,11 +22,11 @@ export default function Driver({ sessionId, onPick }: { sessionId: string | null
   }, [hist])
   const addGoal = async () => {
     try { await api(`/api/driver/goals?track=${encodeURIComponent(form.track)}&metric=${form.metric}&target=${form.target}`, { method: 'POST' }); setMsg('Obiettivo creato'); load() }
-    catch (e: any) { setMsg('Errore: ' + e.message) }
+    catch (e: any) { setMsg('Non è stato possibile creare l\'obiettivo. ' + e.message) }
   }
   return (
     <section className="panel" data-testid="driver">
-      <h2>Crescita del pilota</h2>
+      <h2>I tuoi progressi</h2>
       <p className="help">Cosa allenare con priorità, in base ai tuoi giri registrati.</p>
       <div className="toolbar">
         <label className="inl">Periodo <select value={period} onChange={e => setPeriod(e.target.value)}><option value="day">giornaliero</option><option value="week">settimanale</option><option value="month">mensile</option></select></label>

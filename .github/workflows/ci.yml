@@ -37,6 +37,10 @@ jobs:
           python -m race_engineer serve --synthetic persistent --laps 12 --synthetic-speed 6 --port 8790 &
           for i in $(seq 1 60); do curl -sf http://127.0.0.1:8790/api/health && break; sleep 1; done
           node e2e/display.cjs http://127.0.0.1:8790 "$RUNNER_TEMP/shots"
+      - name: Home, simulator choice and update flows in a real browser (real servers, local stand-in for GitHub)
+        run: |
+          pip install playwright==1.49.1 && python -m playwright install chromium
+          python scripts/e2e_home_update.py "$RUNNER_TEMP/shots-home"
       - uses: actions/upload-artifact@v4
         if: always()
         with: { name: display-screenshots, path: "${{ runner.temp }}/shots" }
@@ -68,6 +72,8 @@ jobs:
         env:      # code-signing certificate (repository secrets). Empty = unsigned build, stated in the log and in SIGNING.txt. See docs/CODE-SIGNING.md
           WINDOWS_SIGN_PFX_BASE64: ${{ secrets.WINDOWS_SIGN_PFX_BASE64 }}
           WINDOWS_SIGN_PFX_PASSWORD: ${{ secrets.WINDOWS_SIGN_PFX_PASSWORD }}
+      - name: Frozen updater on real Windows - waits for a running process, replaces a fake install, keeps user files, rolls back a crashing version
+        run: python scripts/test_updater_bundle.py dist\RaceEngineerAI
       - name: Signing pipeline self-test (throw-away certificate, on copies only - nothing that ships is touched)
         run: python scripts/test_signing_windows.py dist\RaceEngineerAI
       - name: Installer on real Windows - install, smoke-test the INSTALLED copy, clean quit, upgrade and uninstall over a RUNNING copy

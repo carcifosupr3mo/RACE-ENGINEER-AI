@@ -81,6 +81,12 @@ MIGRATIONS: list[tuple[int, str]] = [
         PRIMARY KEY (session_id, lap)
     );
     """),
+    (6, """
+    -- every session belongs to ONE simulator; everything recorded so far came from Le Mans Ultimate ('lmu')
+    ALTER TABLE sessions ADD COLUMN sim TEXT NOT NULL DEFAULT 'lmu';
+    CREATE INDEX idx_sessions_sim ON sessions(sim, started_at);
+    ALTER TABLE goals ADD COLUMN sim TEXT NOT NULL DEFAULT 'lmu';
+    """),
 ]
 
 
@@ -101,6 +107,14 @@ class Catalog:
 
     def migrate(self) -> int:
         cur = self.schema_version()
+        if 0 < cur < MIGRATIONS[-1][0]:
+            # an update that changes the schema first keeps a copy of the catalog (never overwritten, only added)
+            bak = self.path.with_name(f"{self.path.name}.before-v{MIGRATIONS[-1][0]}.bak")
+            if not bak.exists():
+                try:
+                    self.backup(bak)
+                except (OSError, sqlite3.Error):
+                    pass
         for ver, sql in MIGRATIONS:
             if ver > cur:
                 with self.db:  # one transaction per migration
@@ -114,14 +128,14 @@ class Catalog:
             cur = self.db.execute("UPDATE sessions SET status='incomplete' WHERE status='recording'")
         return cur.rowcount
 
-    def create_session(self, *, source: str, is_synthetic: bool, data_path: str, ctx) -> str:
+    def create_session(self, *, source: str, is_synthetic: bool, data_path: str, ctx, sim: str = "lmu") -> str:
         sid = uuid.uuid4().hex
         with self.db:
             self.db.execute(
                 "INSERT INTO sessions(id,started_at,source,is_synthetic,status,track,vehicle,vehicle_class,session_type,"
-                "session_code,game_version,track_length_m,data_path) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                "session_code,game_version,track_length_m,data_path,sim) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (sid, time.time(), source, int(is_synthetic), "recording", ctx.track_name, ctx.vehicle_name,
-                 ctx.vehicle_class, ctx.session_type, ctx.session_code, ctx.game_version, ctx.track_length_m, data_path))
+                 ctx.vehicle_class, ctx.session_type, ctx.session_code, ctx.game_version, ctx.track_length_m, data_path, sim))
         return sid
 
     def update_counts(self, sid: str, samples: int, lost: int) -> None:
@@ -133,9 +147,15 @@ class Catalog:
             self.db.execute("UPDATE sessions SET ended_at=?, status=?, samples=?, samples_lost=? WHERE id=?",
                             (time.time(), "complete" if complete else "incomplete", samples, lost, sid))
 
-    def list_sessions(self, include_synthetic: bool = True) -> list[dict]:
-        q = "SELECT * FROM sessions" + ("" if include_synthetic else " WHERE is_synthetic=0") + " ORDER BY started_at DESC"
-        return [dict(r) for r in self.db.execute(q)]
+    def list_sessions(self, include_synthetic: bool = True, sim: str | None = None) -> list[dict]:
+        """``sim`` limits the list to one simulator (sessions of different games are never mixed)."""
+        where, args = [], []
+        if not include_synthetic:
+            where.append("is_synthetic=0")
+        if sim:
+            where.append("sim=?"); args.append(sim)
+        q = "SELECT * FROM sessions" + (" WHERE " + " AND ".join(where) if where else "") + " ORDER BY started_at DESC"
+        return [dict(r) for r in self.db.execute(q, args)]
 
     def get_track_profile(self, track: str, layout: str = "") -> list[dict] | None:
         import json
@@ -155,13 +175,15 @@ class Catalog:
         return dict(r) if r else None
 
     # --- goals / messages / settings / setups -------------------------------------------------
-    def add_goal(self, track, vehicle, metric, target, baseline=None, note=None) -> int:
+    def add_goal(self, track, vehicle, metric, target, baseline=None, note=None, sim: str = "lmu") -> int:
         with self.db:
-            cur = self.db.execute("INSERT INTO goals(created_at,track,vehicle,metric,target,baseline,note) VALUES (?,?,?,?,?,?,?)",
-                                  (time.time(), track, vehicle, metric, target, baseline, note))
+            cur = self.db.execute("INSERT INTO goals(created_at,track,vehicle,metric,target,baseline,note,sim) VALUES (?,?,?,?,?,?,?,?)",
+                                  (time.time(), track, vehicle, metric, target, baseline, note, sim))
         return cur.lastrowid
 
-    def list_goals(self) -> list[dict]:
+    def list_goals(self, sim: str | None = None) -> list[dict]:
+        if sim:
+            return [dict(r) for r in self.db.execute("SELECT * FROM goals WHERE sim=? ORDER BY id DESC", (sim,))]
         return [dict(r) for r in self.db.execute("SELECT * FROM goals ORDER BY id DESC")]
 
     def set_goal_status(self, gid: int, status: str) -> None:
@@ -188,6 +210,13 @@ class Catalog:
         import json
         with self.db:
             self.db.execute("INSERT INTO settings VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json", (key, json.dumps(value)))
+
+    # Per-simulator settings live under their own key prefix, so one game's configuration can never overwrite another's.
+    def get_sim_setting(self, sim: str, key: str, default=None):
+        return self.get_setting(f"sim.{sim}.{key}", default)
+
+    def put_sim_setting(self, sim: str, key: str, value) -> None:
+        self.put_setting(f"sim.{sim}.{key}", value)
 
     def integrity_ok(self) -> bool:
         return self.db.execute("PRAGMA integrity_check").fetchone()[0] == "ok"

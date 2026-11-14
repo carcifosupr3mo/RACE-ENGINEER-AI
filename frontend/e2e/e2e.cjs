@@ -37,7 +37,7 @@ const check = (name, ok, extra = '') => { console.log((ok ? 'PASS ' : 'FAIL ') +
   // --- Race Engineer AI
   await p.click('[data-testid=nav-ai]'); await p.click('text=Dove perdo tempo?'); await p.waitForSelector('[data-testid=answer]')
   const at = await p.textContent('[data-testid=answer]')
-  check('AI answer: measured + confidence + data used', /Osservazioni misurate/.test(at) && /Confidenza/.test(at) && /Dati utilizzati/.test(at) && /P2/.test(at), at.slice(0, 140))
+  check('AI answer: measured + confidence + data used', /Osservazioni misurate/.test(at) && /Quanto è affidabile/.test(at) && /Dati utilizzati/.test(at) && /P2/.test(at), at.slice(0, 140))
   // --- Tyre & Fuel
   await p.click('[data-testid=nav-tyre]'); await p.waitForSelector('[data-testid=fuel]'); await p.waitForSelector('[data-testid=tyres]')
   const fu = await p.textContent('[data-testid=fuel]')

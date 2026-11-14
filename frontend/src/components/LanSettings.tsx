@@ -27,9 +27,9 @@ export default function LanSettings() {
   const on = !!lan?.enabled
   return (
     <section className="panel" data-testid="lan-settings">
-      <h2>Display in rete (LAN)</h2>
-      <p className="mut">Mostra il Driving Display su un altro schermo o PC della stessa rete (Wi-Fi o cavo). Spento di default: quando è attivo
-        serve un codice segreto (token) nell'indirizzo, quindi nessuno può entrare senza.</p>
+      <h2>Display in rete</h2>
+      <p className="mut">Mostra lo schermo di guida su un altro schermo o PC della stessa rete (Wi-Fi o cavo). È spento di default: quando è acceso
+        serve un codice segreto nell'indirizzo, quindi nessuno può entrare senza.</p>
       <div className="row"><span>Stato</span>
         <span>{on ? <b className="ok" data-testid="lan-state">ATTIVO</b> : <b data-testid="lan-state">SPENTO (solo questo PC)</b>}{' '}
           {lan?.available === false
@@ -40,7 +40,7 @@ export default function LanSettings() {
           <div className="row" key={u}><span className="mono" style={{ wordBreak: 'break-all' }} data-testid="lan-url">{u}</span>
             <span><button onClick={() => copy(u)}>Copia</button></span></div>
         )) : <p className="warn">Nessun indirizzo di rete privato trovato: controlla di essere collegato al Wi-Fi o al cavo.</p>}
-        <p className="mut">Apri uno di questi indirizzi dal browser dell'altro schermo/PC. L'indirizzo contiene il token: tienilo privato.</p>
+        <p className="mut">Apri uno di questi indirizzi dal browser dell'altro schermo/PC. L'indirizzo contiene il codice segreto: tienilo privato.</p>
         <p className="mut">{lan.firewall_hint}</p>
       </>}
       {on && lan.denied?.length > 0 && <div data-testid="lan-denied"><h3>Ultimi accessi rifiutati</h3>

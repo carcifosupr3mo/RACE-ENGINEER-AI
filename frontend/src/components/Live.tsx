@@ -39,17 +39,17 @@ export default function Live() {
   return (
     <section className="panel" data-testid="live">
       {synth && <div className="synth" data-testid="synth-banner">DATI SINTETICI — NON PROVENGONO DA LE MANS ULTIMATE</div>}
-      <h2>Telemetria in diretta</h2>
-      <p className="help">Quello che sta facendo la macchina in questo momento, letto da Le Mans Ultimate.</p>
-      {down && <p className="bad">Backend non raggiungibile…</p>}
+      <h2>Dati in diretta</h2>
+      <p className="help">Quello che sta facendo l'auto in questo momento, letto dal simulatore.</p>
+      {down && <p className="bad">Non riceviamo più dati dall'app. Controlla che sia aperta: ci ricolleghiamo da soli.</p>}
       <p data-testid="state">{st?.state_label ?? '–'} {v && <span className={ds.cls} data-testid="drive-state">{ds.label}</span>}{' '}
-        <span className="mut">· {st?.effective_hz ?? 0} Hz{lost > 0 ? ` · campioni persi ${lost}` : ''}
+        <span className="mut">· {st?.effective_hz ?? 0} letture al secondo{lost > 0 ? ` · letture perse ${lost}` : ''}
           {st?.pause_events > 0 ? ` · pause (garage/menu) ${st.pause_events}` : ''}</span></p>
       <EngineerBlock e={m?.engineer} />
       {v ? (<>
         <div className="grid4">
           <Big label="km/h" v={v.speed_kmh?.toFixed(0)} src={p.speed_kmh} id="speed" />
-          <Big label="rpm" v={v.rpm?.toFixed(0)} src={p.rpm} />
+          <Big label="giri motore" v={v.rpm?.toFixed(0)} src={p.rpm} />
           <Big label="marcia" v={v.gear === -1 ? 'R' : v.gear === 0 ? 'N' : v.gear} src={p.gear} />
           <Big label="giro" v={v.lap_number} src={p.lap_number} />
         </div>
@@ -72,7 +72,7 @@ export default function Live() {
           <Big label={`benzina L${v.fuel_capacity_l ? ' / ' + num(v.fuel_capacity_l, 0) : ''}`} v={num(v.fuel_l, 1)} />
           <Big label="acqua °C" v={num(v.water_temp_c)} />
           <Big label="olio °C" v={num(v.oil_temp_c)} />
-          <Big label="bilanciam. freni (post.) %" v={v.brake_bias_rear != null ? num(v.brake_bias_rear * 100, 1) : '–'} />
+          <Big label="freni: parte sul retrotreno %" v={v.brake_bias_rear != null ? num(v.brake_bias_rear * 100, 1) : '–'} />
         </div>
         {(v.overheating || v.parts_detached || v.damage_dent_max > 0) && (
           <p className="bad" data-testid="damage">
@@ -94,7 +94,7 @@ export default function Live() {
           <Big label="aria °C" v={num(v.ambient_temp_c, 1)} /><Big label="pista °C" v={num(v.track_temp_c, 1)} />
           <Big label="pioggia %" v={v.rain != null ? num(v.rain * 100) : '–'} /><Big label="bagnato pista %" v={v.path_wetness_avg != null ? num(v.path_wetness_avg * 100) : '–'} />
         </div>
-      </>) : <p className="mut">Nessun campione ricevuto. Entra in pista in Le Mans Ultimate: i dati compaiono qui appena la vettura si muove.</p>}
+      </>) : <p className="mut">Non riceviamo ancora dati dal simulatore. Controlla che il gioco sia aperto e che «Enable Plugins» sia attivo, poi entra in pista: i dati compaiono qui appena l'auto si muove.</p>}
     </section>)
 }
 const Big = ({ label, v, src, id }: any) => <div className="big"><div data-testid={id}>{v ?? '–'}</div><small>{label} <i className={'src ' + src}>{src}</i></small></div>
@@ -107,19 +107,19 @@ function EngineerBlock({ e }: { e: any }) {
   return (
     <div className="eng" data-testid="live-engineer">
       <div className="eng-h"><b>Ingegnere di pista</b> <span className="tag" data-testid="live-mode">{e.session?.mode?.label}</span>
-        <span className="tag">rif. {e.reference?.reliability?.level} · {e.reference?.laps} giri</span> <span className="tag" data-testid="live-seq">v{e.reference?.version}</span>
-        <a href="/driving-display" target="_blank" rel="noreferrer" data-testid="open-display">Apri Driving Display ↗</a></div>
+        <span className="tag" title="Il tuo miglior passaggio, usato come confronto">riferimento {e.reference?.reliability?.level} · {e.reference?.laps} giri</span> <span className="tag" data-testid="live-seq">v{e.reference?.version}</span>
+        <a href="/driving-display" target="_blank" rel="noreferrer" data-testid="open-display">Apri lo schermo di guida ↗</a></div>
       <div className="eng-row">
-        <span>Delta: <b className="mono" data-testid="live-delta">{d?.available ? (d.to_ref_s > 0 ? '+' : '') + d.to_ref_s.toFixed(3) + ' s' : '–'}</b></span>
+        <span>Differenza dal riferimento: <b className="mono" data-testid="live-delta">{d?.available ? (d.to_ref_s > 0 ? '+' : '') + d.to_ref_s.toFixed(3) + ' s' : '–'}</b></span>
         <span>Curva: <b>{e.corner?.current ?? ('→ ' + (e.corner?.next ?? '–'))}</b></span>
-        <span>Ultimo giro vs rif.: <b className="mono">{e.last_lap?.delta_s != null ? (e.last_lap.delta_s > 0 ? '+' : '') + e.last_lap.delta_s.toFixed(3) + ' s' : '–'}</b></span>
+        <span>Ultimo giro rispetto al riferimento: <b className="mono">{e.last_lap?.delta_s != null ? (e.last_lap.delta_s > 0 ? '+' : '') + e.last_lap.delta_s.toFixed(3) + ' s' : '–'}</b></span>
       </div>
       <div data-testid="live-suggestion" className={sug?.state === 'learning' ? 'mut' : ''}>
-        {sug?.state === 'learning' ? sug.learning?.message : m ? <><b>{m.instruction?.text ?? m.text}</b> <span className={'tag conf-' + m.confidence?.level}>affidabilità {m.confidence?.level}</span></> : 'Nessun miglioramento significativo rilevato'}
+        {sug?.state === 'learning' ? sug.learning?.message : m ? <><b>{m.instruction?.text ?? m.text}</b> <span className={'tag conf-' + m.confidence?.level}>affidabilità {m.confidence?.level}</span></> : 'Per ora non vedo nulla di importante da correggere'}
       </div>
       {m?.instruction && <div className="mut" data-testid="live-instruction">{m.instruction.how}{m.instruction.habit_note ? ' · ' + m.instruction.habit_note : ''}</div>}
       {e.review && <div className="mut" data-testid="live-review">Giro {e.review.lap}: {e.review.summary}</div>}
       {e.alerts?.map((a: any) => <div key={a.id} className={a.level === 'info' ? 'mut' : 'bad'}>⚠ {a.text}</div>)}
-      {e.ai_note && <div className="mut" data-testid="live-ai-note">AI ({e.ai_note.provider}, giro {e.ai_note.lap}): {e.ai_note.text}</div>}
+      {e.ai_note && <div className="mut" data-testid="live-ai-note">Assistente AI ({e.ai_note.provider}, giro {e.ai_note.lap}): {e.ai_note.text}</div>}
     </div>)
 }

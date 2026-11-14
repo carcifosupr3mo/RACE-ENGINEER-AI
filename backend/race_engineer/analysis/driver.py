@@ -54,9 +54,9 @@ def session_stats(row: dict) -> dict:
     return out
 
 
-def history(catalog: Catalog, include_synthetic: bool = False, period: str = "week") -> dict:
+def history(catalog: Catalog, include_synthetic: bool = False, period: str = "week", sim: str | None = None) -> dict:
     groups: dict = defaultdict(list)
-    for row in catalog.list_sessions(include_synthetic):
+    for row in catalog.list_sessions(include_synthetic, sim=sim):
         if row["status"] == "recording" or not row["samples"]:
             continue
         st = session_stats(row)["summary"]
@@ -83,7 +83,7 @@ def history(catalog: Catalog, include_synthetic: bool = False, period: str = "we
 
 
 def evaluate_goal(catalog: Catalog, g: dict) -> dict:
-    rows = [r for r in catalog.list_sessions(True) if r["track"] == g["track"] and (not g["vehicle"] or r["vehicle"] == g["vehicle"])
+    rows = [r for r in catalog.list_sessions(True, sim=g.get("sim")) if r["track"] == g["track"] and (not g["vehicle"] or r["vehicle"] == g["vehicle"])
             and r["status"] != "recording" and r["started_at"] >= g["created_at"] - 1 and r["samples"]]
     vals = []
     for r in rows:

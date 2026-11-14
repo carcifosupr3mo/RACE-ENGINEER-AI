@@ -44,3 +44,11 @@ if have_qt:
                   version=version_info("Race Engineer AI", "RaceEngineerAI.exe"))
     parts += [exe_gui, a_gui.binaries, a_gui.datas]
 coll = COLLECT(*parts, name="RaceEngineerAI")
+
+# The updater is a SEPARATE, tiny, stdlib-only single-file program: the app copies it to a temp folder and runs it while the app is
+# closed, because a running program cannot overwrite its own files on Windows. scripts/build.py copies it next to RaceEngineerAI.exe.
+a_upd = Analysis([str(root / "scripts" / "run_updater.py")], pathex=[str(root / "backend")], hiddenimports=["race_engineer.updater.apply"],
+                 excludes=excludes + ["numpy", "scipy", "duckdb", "fastapi", "uvicorn", "PySide6", "httpx", "keyring"])
+pyz_upd = PYZ(a_upd.pure)
+exe_upd = EXE(pyz_upd, a_upd.scripts, a_upd.binaries, a_upd.datas, [], name="RaceEngineerUpdater", console=False,
+              icon=str(root / "packaging" / "icon.ico"), version=version_info("Race Engineer AI - programma di aggiornamento", "RaceEngineerUpdater.exe"))

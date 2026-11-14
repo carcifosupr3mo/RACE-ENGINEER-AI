@@ -40,6 +40,9 @@ python -m pytest tests                                # suite completa (~200 tes
 ```
 Dettagli: [docs/INSTALLATION.md](docs/INSTALLATION.md).
 
+## Simulatori e aggiornamenti (0.7.0)
+Al primo avvio scegli il simulatore: la scelta viene ricordata. Oggi è **supportato solo Le Mans Ultimate**; gli altri nove sono mostrati come «In arrivo» / «Da verificare» e non sono selezionabili ([docs/SIMULATORS.md](docs/SIMULATORS.md)). L'app controlla a ogni avvio le sole release **stabili** (`vX.Y.Z`) e può aggiornarsi da sola con verifica SHA-256, backup e rollback ([docs/UPDATES.md](docs/UPDATES.md)).
+
 ## Documentazione
 [ARCHITECTURE](ARCHITECTURE.md) · [ROADMAP](ROADMAP.md) · [CHANGELOG](CHANGELOG.md) · [TESTING](TESTING.md) ·
 [LMU-INTEGRATION](docs/LMU-INTEGRATION.md) · [TELEMETRY-FORMAT](docs/TELEMETRY-FORMAT.md) · [DATA-MODEL](docs/DATA-MODEL.md) ·

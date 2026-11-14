@@ -78,7 +78,8 @@ LOCAL_HOSTS = {"127.0.0.1", "localhost", "[::1]", "::1"}
 
 def create_app(engine: AcquisitionEngine, catalog: Catalog, *, lan_enabled: bool = False,
                token: str | None = None, install: LmuInstall | None = None,
-               allowed_import_dirs: list[Path] | None = None, webdist: Path | None = None, live_options: dict | None = None) -> FastAPI:
+               allowed_import_dirs: list[Path] | None = None, webdist: Path | None = None, live_options: dict | None = None,
+               updater=None) -> FastAPI:
     """Security model:
     * default: server bound to loopback by the CLI; requests must carry a loopback Host header
       (DNS-rebinding protection) and, for WebSockets, a same-origin Origin.
@@ -157,6 +158,95 @@ def create_app(engine: AcquisitionEngine, catalog: Catalog, *, lan_enabled: bool
     def health():
         return {"ok": True, "version": __version__, "lan_enabled": lan_state["on"], "platform": sys.platform}
 
+    # ---- simulator choice (persistent) ------------------------------------------------------------------------------------
+    from .. import sims as sims_mod
+
+    def _sim_connection(sim_id: str) -> dict:
+        """Plain-language connection state of ONE simulator. Only LMU has a reader today."""
+        if sim_id != "lmu":
+            return {"state": "not_supported", "label": "Non ancora collegabile", "detail": "L'app non sa ancora leggere i dati di questo gioco."}
+        d = engine.diagnostics()
+        st = ConnState(d["state"])
+        simple = {ConnState.ACQUIRING: ("ok", "Collegato: sto raccogliendo i dati"),
+                  ConnState.SHM_CONNECTED: ("ok", "Collegato: in attesa che inizi la guida"),
+                  ConnState.SESSION_ENDED: ("ok", "Sessione terminata: i dati sono salvati")}
+        if st in simple:
+            return {"state": simple[st][0], "label": simple[st][1], "detail": STATE_LABELS_IT[st]}
+        if st is ConnState.ERROR:
+            return {"state": "problem", "label": "Problema di collegamento", "detail": "Non riusciamo a ricevere i dati dal simulatore. Controlla che il gioco sia aperto e che «Enable Plugins» sia attivo, poi riavvia il gioco."}
+        return {"state": "waiting", "label": "In attesa del gioco", "detail": "Apri Le Mans Ultimate: l'app si collega da sola."}
+
+    def _sims_payload() -> dict:
+        sel = sims_mod.selected(catalog)
+        return {"selected": sel, "first_run": sel is None, "default": sims_mod.DEFAULT_SIM,
+                "sims": [{**s.to_json(), "connection": _sim_connection(s.id) if s.id == sel else None} for s in sims_mod.SIMS],
+                "connection": _sim_connection(sel) if sel else None}
+
+    def _activate_sim(sim_id: str) -> None:
+        """Load the chosen simulator's own configuration and make sure ITS acquisition runs. Only LMU has one; the others are not selectable."""
+        if sim_id == "lmu":
+            engine.start()                                # no-op when already running
+        app.state.active_sim = sim_id
+
+    def _cur_sim() -> str:
+        return sims_mod.selected(catalog) or sims_mod.DEFAULT_SIM
+
+    @app.get("/api/sims")
+    def sims_list():
+        return _sims_payload()
+
+    @app.put("/api/sims/selected")
+    def sims_select(body: dict):
+        try:
+            sim = sims_mod.select(catalog, str(body.get("id", "")))
+        except sims_mod.UnknownSim as e:
+            raise HTTPException(404, str(e))
+        except sims_mod.NotSupportedSim as e:
+            raise HTTPException(409, str(e))
+        _activate_sim(sim.id)
+        return _sims_payload()
+
+    _boot_sim = sims_mod.selected(catalog)
+    app.state.active_sim = _boot_sim                      # the last choice is restored at every start (nothing to pick again)
+    if _boot_sim:
+        _activate_sim(_boot_sim)
+
+    # ---- updates -----------------------------------------------------------------------------------------------------------
+    from ..updater.manager import UpdateManager
+    from ..updater.source import UpdateError
+    if updater is None:
+        updater = UpdateManager(catalog, __version__, engine.data_root or data_dir())
+    app.state.updater = updater
+
+    @app.get("/api/update/status")
+    def update_status():
+        return updater.status()
+
+    @app.post("/api/update/check")
+    def update_check():
+        return updater.check()
+
+    @app.post("/api/update/start")
+    def update_start():
+        try:
+            return updater.start_install()
+        except UpdateError as e:
+            raise HTTPException(409, e.message)
+
+    @app.post("/api/update/skip")
+    def update_skip():
+        return updater.skip()
+
+    @app.post("/api/update/ack")
+    def update_ack():
+        updater.ack_result()
+        return updater.status()
+
+    @app.put("/api/update/auto")
+    def update_auto(body: dict):
+        updater.set_auto(bool(body.get("enabled")))
+        return updater.status()
+
     @app.get("/api/status")
     def status():
         d = engine.diagnostics()
@@ -211,8 +301,11 @@ def create_app(engine: AcquisitionEngine, catalog: Catalog, *, lan_enabled: bool
                 "verified_against_real_lmu": False}
 
     @app.get("/api/sessions")
-    def sessions():
-        return catalog.list_sessions()
+    def sessions(sim: str | None = None):
+        """Sessions of the SELECTED simulator only (``?sim=all`` shows every game). Games are never mixed."""
+        if sim == "all":
+            return catalog.list_sessions()
+        return catalog.list_sessions(sim=sim or sims_mod.selected(catalog) or sims_mod.DEFAULT_SIM)
 
     def _allowed(p: Path) -> bool:
         roots = list(allowed_import_dirs or [])
@@ -229,7 +322,7 @@ def create_app(engine: AcquisitionEngine, catalog: Catalog, *, lan_enabled: bool
     def duck_inspect(path: str):
         p = Path(path)
         if not _allowed(p) or not p.is_file():
-            raise HTTPException(404, "file not in the LMU telemetry folder")
+            raise HTTPException(404, "Questo file non è nella cartella dei dati di Le Mans Ultimate: per sicurezza l'app apre solo file di quella cartella.")
         with LmuDuckdb(p, copy_first=True) as d:
             return dataclasses.asdict(d.inspect())
 
@@ -239,9 +332,9 @@ def create_app(engine: AcquisitionEngine, catalog: Catalog, *, lan_enabled: bool
     def _session(sid: str):
         row = catalog.get_session(sid)
         if not row:
-            raise HTTPException(404, "unknown session")
+            raise HTTPException(404, "Sessione non trovata. Aggiorna l'elenco delle sessioni.")
         if row["status"] == "recording":
-            raise HTTPException(409, "session still recording")
+            raise HTTPException(409, "La sessione è ancora in registrazione: attendi che finisca per analizzarla.")
         key = (sid, row["samples"])
         if key not in cache:
             sd = load_session(row["data_path"], row["track_length_m"] or 0.0)
@@ -286,7 +379,7 @@ def create_app(engine: AcquisitionEngine, catalog: Catalog, *, lan_enabled: bool
         for n in [int(x) for x in laps.split(",") if x]:
             lap = next((l for l in ls if l.number == n), None)
             if lap is None:
-                raise HTTPException(404, f"lap {n} not found")
+                raise HTTPException(404, f"Il giro {n} non è stato trovato in questa sessione.")
             a = align_lap(sd, lap)
             sl = slice(None, None, max(1, step))
             f = lambda arr: [None if not np.isfinite(x) else round(float(x), 3) for x in arr[sl]]
@@ -373,19 +466,19 @@ def create_app(engine: AcquisitionEngine, catalog: Catalog, *, lan_enabled: bool
     @app.get("/api/driver/history")
     def driver_history(period: str = "week", include_synthetic: bool = False):
         if period not in ("day", "week", "month"):
-            raise HTTPException(422, "period must be day|week|month")
-        return clean(drv.history(catalog, include_synthetic, period))
+            raise HTTPException(422, "Il periodo deve essere giorno, settimana o mese.")
+        return clean(drv.history(catalog, include_synthetic, period, sim=_cur_sim()))
 
     @app.get("/api/driver/goals")
     def goals():
-        return clean([drv.evaluate_goal(catalog, g) for g in catalog.list_goals()])
+        return clean([drv.evaluate_goal(catalog, g) for g in catalog.list_goals(sim=_cur_sim())])
 
     @app.post("/api/driver/goals")
     def add_goal(track: str, metric: str, target: float, vehicle: str = "", note: str | None = None):
         if metric not in ("best_lap_s", "lap_std_s", "slow_corner_loss_s"):
-            raise HTTPException(422, "unknown metric")
+            raise HTTPException(422, "Tipo di obiettivo non riconosciuto.")
         base = None
-        rows = [r for r in catalog.list_sessions(True) if r["track"] == track and r["status"] != "recording" and r["samples"]]
+        rows = [r for r in catalog.list_sessions(True, sim=_cur_sim()) if r["track"] == track and r["status"] != "recording" and r["samples"]]
         vals = []
         for r in rows:
             st = drv.session_stats(r)
@@ -393,7 +486,7 @@ def create_app(engine: AcquisitionEngine, catalog: Catalog, *, lan_enabled: bool
             if v is not None:
                 vals.append(v)
         base = min(vals) if vals else None
-        return {"id": catalog.add_goal(track, vehicle, metric, target, base, note), "baseline": base}
+        return {"id": catalog.add_goal(track, vehicle, metric, target, base, note, sim=_cur_sim()), "baseline": base}
 
     @app.get("/api/sessions/{sid}/training")
     def training(sid: str):
@@ -404,7 +497,7 @@ def create_app(engine: AcquisitionEngine, catalog: Catalog, *, lan_enabled: bool
     def chat(body: dict):
         sid, q = body.get("session_id"), (body.get("question") or "").strip()
         if not sid or not q:
-            raise HTTPException(422, "session_id and question are required")
+            raise HTTPException(422, "Scegli una sessione e scrivi una domanda.")
         _session(sid)
         return clean(ai_chat.ask(catalog, sid, q, conversation=body.get("conversation", "default")))
 
@@ -575,7 +668,7 @@ def create_app(engine: AcquisitionEngine, catalog: Catalog, *, lan_enabled: bool
         from ..ai.providers.credentials import store_key, key_status
         prov = body.get("provider")
         if prov not in ("nvidia", "groq") or not isinstance(body.get("key"), str) or len(body["key"]) < 8:
-            raise HTTPException(422, "provider must be nvidia|groq and key a non-empty string")
+            raise HTTPException(422, "Scegli il servizio (NVIDIA o Groq) e incolla la chiave.")
         res = store_key(prov, body["key"])
         body["key"] = None
         return {**res, "status": key_status(prov)}
@@ -597,12 +690,12 @@ def create_app(engine: AcquisitionEngine, catalog: Catalog, *, lan_enabled: bool
     @app.put("/api/ai/settings")
     def ai_put(cfg: dict):
         if cfg.get("mode") == "free_multi" and any(k in str(cfg) for k in ("api_key\"", "'api_key'", "'key'", "'token'")):
-            raise HTTPException(422, "do not send secrets in settings")
+            raise HTTPException(422, "Le chiavi non vanno inserite qui: usa il campo apposito.")
         for p in cfg.get("providers", []):
             if p.get("type") not in ("openai_compat", "anthropic") or "model" not in p:
-                raise HTTPException(422, "provider needs type openai_compat|anthropic and model")
+                raise HTTPException(422, "Per il servizio personalizzato servono il tipo (openai_compat o anthropic) e il modello.")
             if any(k in p for k in ("api_key", "key", "token")):
-                raise HTTPException(422, "do not send secrets: use api_key_env (environment variable name)")
+                raise HTTPException(422, "Le chiavi non vanno inserite qui: indica il nome della variabile d'ambiente (api_key_env).")
         catalog.put_setting("ai", cfg)
         return {"ok": True}
 
@@ -613,18 +706,18 @@ def create_app(engine: AcquisitionEngine, catalog: Catalog, *, lan_enabled: bool
             if body.get("duckdb_path"):
                 p = Path(body["duckdb_path"])
                 if not _allowed(p) or not p.is_file():
-                    raise HTTPException(404, "file not in the LMU telemetry folder")
+                    raise HTTPException(404, "Questo file non è nella cartella dei dati di Le Mans Ultimate: per sicurezza l'app apre solo file di quella cartella.")
                 return setup_advisor.import_from_duckdb_metadata(catalog, str(p), body.get("session_id"))
             if "raw" in body:
                 return setup_advisor.import_setup(catalog, body["raw"], "manual_json", body.get("name"), body.get("session_id"))
         except ValueError as e:
             raise HTTPException(422, str(e))
-        raise HTTPException(422, "provide raw or duckdb_path")
+        raise HTTPException(422, "Indica il testo dell'assetto o il file da importare.")
 
     @app.get("/api/setups/{setup_id}/advice")
     def setup_advice(setup_id: str, session_id: str, lap: int, ref: int | None = None):
         if setup_advisor.get_setup(catalog, setup_id) is None:
-            raise HTTPException(404, "unknown setup")
+            raise HTTPException(404, "Assetto non trovato.")
         res = compare_api(session_id, lap, ref)
         return clean(setup_advisor.advise(catalog, setup_id, res["findings"]))
 
@@ -638,7 +731,7 @@ def create_app(engine: AcquisitionEngine, catalog: Catalog, *, lan_enabled: bool
         if not corners:
             raise HTTPException(422, "Nessuna curva da salvare: un profilo vuoto non ha senso e cancellerebbe le curve rilevate.")
         if any(not need <= set(c) for c in corners):
-            raise HTTPException(422, f"each corner needs {sorted(need)}")
+            raise HTTPException(422, f"Ogni curva deve avere questi campi: {', '.join(sorted(need))}.")
         catalog.put_track_profile(track, corners)
         return {"ok": True, "corners": len(corners)}
 
@@ -646,7 +739,7 @@ def create_app(engine: AcquisitionEngine, catalog: Catalog, *, lan_enabled: bool
     def import_duck(path: str):
         p = Path(path)
         if not _allowed(p) or not p.is_file():
-            raise HTTPException(404, "file not in the LMU telemetry folder")
+            raise HTTPException(404, "Questo file non è nella cartella dei dati di Le Mans Ultimate: per sicurezza l'app apre solo file di quella cartella.")
         try:
             return import_lmu_duckdb(p, catalog, data_dir_provider())
         except ValueError as e:
@@ -664,7 +757,7 @@ def create_app(engine: AcquisitionEngine, catalog: Catalog, *, lan_enabled: bool
         """The Driving Display is a presentation mode of the SAME web app (route chosen client-side); data comes from /ws/live + /api/engineer/*."""
         if (dist / "index.html").is_file():
             return FileResponse(dist / "index.html", headers={"Cache-Control": "no-store"})
-        return JSONResponse({"detail": "frontend not built (npm run build in frontend/)"}, status_code=503)
+        return JSONResponse({"detail": "L'interfaccia non è stata compilata (esegui npm run build nella cartella frontend)."}, status_code=503)
 
     @app.get("/diag")
     def diag():

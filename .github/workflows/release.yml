@@ -7,6 +7,7 @@ on:
       run_id: { description: "CI run id holding the RaceEngineerAI-windows artifact", required: true }
       tag: { description: "Release tag", required: true, default: "v0.6.7-rc1" }
       commit: { description: "Commit the run was built from", required: true }
+      stable: { description: "true = STABLE release (plain tag such as v0.7.0): the ONLY kind the in-app updater offers. false = pre-release for testing (e.g. v0.7.0-rc1)", type: boolean, default: false }
 permissions:
   contents: write
   actions: read
@@ -35,6 +36,13 @@ jobs:
           $(cat SIGNING.txt 2>/dev/null || echo "Eseguibili NON firmati: Windows SmartScreen puo mostrare un avviso.")
           Procedura di test: docs/UNIFIED_DRIVING_DISPLAY.md sezione 11.2.
           NOTES
-          gh release create "${{ inputs.tag }}" --repo "${{ github.repository }}" --target "${{ inputs.commit }}" --prerelease \
-            --title "${{ inputs.tag }} (Windows, test con LMU)" --notes-file notes.md \
+          if [ "${{ inputs.stable }}" = "true" ]; then
+            echo "${{ inputs.tag }}" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$' || { echo "A stable tag must look like v1.2.3"; exit 1; }
+            KIND="--latest"; TITLE="${{ inputs.tag }}"
+          else
+            KIND="--prerelease"; TITLE="${{ inputs.tag }} (Windows, test con LMU)"
+          fi
+          # SHA256SUMS.txt and RaceEngineerAI-win32.zip are what the in-app updater verifies: both must be assets of the release
+          gh release create "${{ inputs.tag }}" --repo "${{ github.repository }}" --target "${{ inputs.commit }}" $KIND \
+            --title "$TITLE" --notes-file notes.md \
             RaceEngineerAI-win32.zip RaceEngineerAI-Setup-*.exe SHA256SUMS.txt
