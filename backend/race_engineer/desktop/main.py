@@ -381,9 +381,31 @@ def run(argv=None) -> int:
         def finish():
             title = {"t": None}
 
+            tries = {"n": 0}
+
+            def ask_title():
+                # a slow machine (CI) may not have rendered the React UI yet: ask again for up to ~40 s before judging
+                view.page().runJavaScript(
+                    "(function(){var h=document.querySelector('nav h1');var r=document.getElementById('root');"
+                    "return JSON.stringify({t:h?h.textContent:null,root:r?r.innerHTML.length:-1,body:document.body?document.body.innerText.length:-1,url:location.href});})()",
+                    got_title)
+
+            def got_title(v):
+                import json as _json
+                try:
+                    info = _json.loads(v) if v else {}
+                except ValueError:
+                    info = {}
+                tries["n"] += 1
+                if (info.get("t") or "").strip() or tries["n"] >= 40:
+                    print("SMOKE page", info, "tries", tries["n"])
+                    report(info.get("t"))
+                else:
+                    QTimer.singleShot(1000, ask_title)
+
             def got_display(v):
                 result["display"] = bool(v)
-                view.page().runJavaScript("document.querySelector('nav h1') ? document.querySelector('nav h1').textContent : null", lambda t: (title.__setitem__("t", t), report(title["t"])))
+                ask_title()
             dview.page().runJavaScript("!!document.querySelector('[data-testid=driving-display]')", got_display)
 
         def api_checks() -> dict:
