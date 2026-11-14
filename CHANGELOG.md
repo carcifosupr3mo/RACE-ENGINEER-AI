@@ -1,4 +1,11 @@
 # CHANGELOG
+## Non rilasciato — audit finale (fase 2)
+- **Smoke desktop**: la CI Windows aveva segnalato titolo vuoto nel controllo dell'interfaccia; ora il controllo attende il rendering (fino a ~40 s) e stampa diagnostica della pagina.
+- **Firma Ed25519 di `SHA256SUMS.txt`** (`updater/signing.py`, solo libreria standard): attiva quando il manutentore inserisce la chiave pubblica (`PUBLIC_KEY_HEX`); da allora l'app rifiuta release senza firma valida. `scripts/make_signing_key.py`, `scripts/sign_sums.py`. Vettori RFC 8032 + OpenSSL nei test. **Chiave NON ancora generata**: oggi la protezione è SHA-256 (solo integrità).
+- **release.yml**: input passati via variabili (niente interpolazione nella shell), controlla che il run sia verde e costruito dal commit indicato, che la versione nel pacchetto coincida col tag, firma i checksum se esiste il secret `RELEASE_SIGNING_KEY_PEM`. Procedura: `docs/RELEASE.md`.
+- **Migrazione 7**: colonna `sim` (default `lmu`) su coach_tips/habits/laps, setups, track_profiles, messages; nessuna riga toccata, backup `.before-v7.bak`. Le chiavi primarie di habits/track_profiles verranno ricostruite insieme al secondo simulatore.
+- `docs/LMU-TEST-REALE.md`: procedura per il test con LMU reale (stato: NON verificato).
+
 ## 0.7.0 — Nuova Home, scelta del simulatore, linguaggio semplice, aggiornamenti da GitHub
 - **Home**: al primo avvio «Scegli il tuo simulatore» (10 schede con badge, descrizione, stato «Supportato / In arrivo / Da verificare», modalità di collegamento, dettagli tecnici espandibili). Poi una scheda principale con simulatore, stato del collegamento in parole semplici, «Apri simulatore/Continua» e «Cambia simulatore», profilo caricato, raccolta dati e quattro accessi rapidi.
 - **Simulatore persistente** (catalogo SQLite, non browser): ricaricato a ogni avvio, sopravvive a riavvii e aggiornamenti. Menu a tendina in alto a destra per cambiarlo; solo i simulatori realmente letti (oggi Le Mans Ultimate) sono selezionabili (gli altri: HTTP 409 e interfaccia disattivata). Sessioni, storico e obiettivi separati per simulatore (migrazione 6).

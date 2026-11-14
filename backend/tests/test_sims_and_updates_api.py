@@ -107,9 +107,9 @@ def test_migration_to_v6_keeps_existing_rows_and_makes_a_backup(tmp_path):
     db.execute("INSERT INTO settings VALUES ('keep','\"me\"')")
     db.commit(); db.close()
     cat = Catalog(p)
-    assert cat.schema_version() == 6
+    assert cat.schema_version() == MIGRATIONS[-1][0]
     assert cat.get_session("s1")["sim"] == "lmu" and cat.list_goals()[0]["sim"] == "lmu" and cat.get_setting("keep") == "me"
-    assert (tmp_path / "old.sqlite.before-v6.bak").exists()
+    assert (tmp_path / f"old.sqlite.before-v{MIGRATIONS[-1][0]}.bak").exists()
     cat.close()
 
 
@@ -140,3 +140,30 @@ def test_update_start_without_available_release_is_a_clear_409(env):
     g, e, tmp, cat = env
     r = client(e, cat).post("/api/update/start")
     assert r.status_code == 409 and r.json()["detail"]
+
+
+def test_migration_7_adds_sim_columns_and_keeps_every_row(tmp_path):
+    import sqlite3
+    import time
+
+    from race_engineer.storage import catalog as cat
+
+    path = tmp_path / "catalog.sqlite"
+    db = sqlite3.connect(path)
+    db.execute("CREATE TABLE schema_migrations(version INTEGER PRIMARY KEY, applied_at REAL)")
+    for ver, sql in cat.MIGRATIONS[:6]:                       # a catalog exactly as the previous release left it
+        db.executescript("BEGIN;" + sql)
+        db.execute("INSERT INTO schema_migrations VALUES (?,?)", (ver, time.time()))
+    db.execute("INSERT INTO track_profiles VALUES ('Spa','', '[]', 1.0)")
+    db.execute("INSERT INTO coach_habits VALUES ('Spa','car',0,'T1','late_brake',3,1.5,1.0,2.0,'s1',1,NULL)")
+    db.execute("INSERT INTO coach_laps VALUES ('s1',1,'Spa','car',0,1.0,100.0,0.5,2,'{}')")
+    db.commit(); db.close()
+    c = cat.Catalog(path)
+    assert c.schema_version() == 7
+    assert (tmp_path / "catalog.sqlite.before-v7.bak").exists()
+    for table in ("coach_tips", "coach_habits", "coach_laps", "setups", "track_profiles", "messages"):
+        assert "sim" in [r[1] for r in c.db.execute(f"PRAGMA table_info({table})")]
+    assert c.db.execute("SELECT sim FROM coach_habits").fetchone()[0] == "lmu"
+    assert c.db.execute("SELECT laps_seen FROM coach_habits").fetchone()[0] == 3
+    assert c.db.execute("SELECT sim,time_s FROM coach_laps").fetchone()[:] == ("lmu", 100.0)
+    assert c.db.execute("SELECT sim FROM track_profiles").fetchone()[0] == "lmu"

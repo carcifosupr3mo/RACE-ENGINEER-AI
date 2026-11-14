@@ -108,7 +108,7 @@ class CoachMemory:
         now = self.clock()
         with self.db:
             if r is None:
-                self.db.execute("INSERT INTO coach_habits VALUES (?,?,?,?,?,1,?,?,?,?,1,NULL)", (*key, float(impact_s or 0.0), now, now, session_id))
+                self.db.execute("INSERT INTO coach_habits(track,vehicle,synthetic,corner,type,laps_seen,total_impact_s,first_seen,last_seen,last_session_id,sessions,fixed_at) VALUES (?,?,?,?,?,1,?,?,?,?,1,NULL)", (*key, float(impact_s or 0.0), now, now, session_id))
             else:
                 self.db.execute("UPDATE coach_habits SET laps_seen=laps_seen+1, total_impact_s=total_impact_s+?, last_seen=?, last_session_id=?, "
                                 "sessions=sessions+?, fixed_at=NULL WHERE track=? AND vehicle=? AND synthetic=? AND corner=? AND type=?",
@@ -141,7 +141,7 @@ class CoachMemory:
     # ------------------------------------------------------------------ laps / progress
     def save_lap(self, session_id, lap, track, vehicle, synthetic, time_s, delta_best_s, findings, review: dict) -> None:
         with self.db:
-            self.db.execute("INSERT OR REPLACE INTO coach_laps VALUES (?,?,?,?,?,?,?,?,?,?)",
+            self.db.execute("INSERT OR REPLACE INTO coach_laps(session_id,lap,track,vehicle,synthetic,created_at,time_s,delta_best_s,findings,review_json) VALUES (?,?,?,?,?,?,?,?,?,?)",
                             (session_id, lap, track or "", vehicle or "", int(synthetic), self.clock(), time_s, delta_best_s, findings,
                              json.dumps(review, ensure_ascii=False)))
 

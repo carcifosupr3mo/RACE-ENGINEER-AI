@@ -34,6 +34,7 @@ class FakeGithub:
         self.drop_after, self.drops_left, self.status, self.tamper, self.slow = drop_after, drop_times, status, tamper, slow
         self.requests: list[tuple[str, str | None]] = []
         self.releases = releases
+        self.sig: str | None = None            # content of SHA256SUMS.txt.sig (None: the asset is listed but 404)
         outer = self
 
         class H(BaseHTTPRequestHandler):
@@ -46,6 +47,10 @@ class FakeGithub:
                     self.send_response(outer.status); self.end_headers(); return
                 if self.path.startswith(f"/repos/{REPO}/releases"):
                     return self._send(json.dumps(outer.releases if outer.releases is not None else outer.default_releases()).encode(), "application/json")
+                if self.path.endswith("SHA256SUMS.txt.sig"):
+                    if outer.sig is None:
+                        self.send_response(404); self.end_headers(); return
+                    return self._send(outer.sig.encode(), "text/plain")
                 if self.path.endswith("SHA256SUMS.txt"):
                     return self._send(outer.sums.encode(), "text/plain")
                 if self.path.endswith("RaceEngineerAI-win32.zip"):
@@ -95,5 +100,6 @@ class FakeGithub:
 def release(base: str, tag: str, notes: str = "", size: int = 1000, *, prerelease=False, draft=False, assets=True) -> dict:
     url = f"{base}/{REPO}/releases/download/{tag}"
     a = [{"name": "RaceEngineerAI-win32.zip", "browser_download_url": f"{url}/RaceEngineerAI-win32.zip", "size": size},
-         {"name": "SHA256SUMS.txt", "browser_download_url": f"{url}/SHA256SUMS.txt", "size": 100}] if assets else []
+         {"name": "SHA256SUMS.txt", "browser_download_url": f"{url}/SHA256SUMS.txt", "size": 100},
+         {"name": "SHA256SUMS.txt.sig", "browser_download_url": f"{url}/SHA256SUMS.txt.sig", "size": 90}] if assets else []
     return {"tag_name": tag, "prerelease": prerelease, "draft": draft, "body": notes, "html_url": f"https://github.com/{REPO}/releases/tag/{tag}", "assets": a}

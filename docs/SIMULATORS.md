@@ -27,3 +27,7 @@ la mostra disattivata.
 * **Limite attuale**: la memoria del coach (`coach_tips`, `coach_habits`, `coach_laps`) è indicizzata per circuito/vettura senza simulatore. Con un solo simulatore
   selezionabile non può mescolare nulla; va estesa con una colonna `sim` quando verrà aggiunto un secondo gioco.
 * La scelta è salvata nel catalogo (`app.selected_sim`), non nel browser: sopravvive a chiusura, riavvio del PC e aggiornamenti.
+
+## Architettura per più simulatori (stato)
+- **Fatto**: ogni sessione e obiettivo ha `sim` (migrazione 6); dalla migrazione 7 anche memoria del Coach (consigli, abitudini, giri), setup, profili circuito e messaggi hanno la colonna `sim` (le righe esistenti = `lmu`). Il registro `sims.py` e la scelta persistente non cambiano.
+- **Non ancora fatto (si farà insieme al secondo simulatore, non prima)**: (1) ricostruire le chiavi primarie di `coach_habits` e `track_profiles` includendo `sim` (con backup e test sui dati esistenti); (2) filtrare per simulatore le query del Coach e dell'API; (3) un lettore per il nuovo simulatore con le stesse regole (sola lettura, dati sintetici etichettati). Finché solo LMU è selezionabile non c'è mescolamento possibile: tutto ciò che viene scritto è `lmu`.

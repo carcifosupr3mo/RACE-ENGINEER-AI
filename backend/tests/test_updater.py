@@ -1,3 +1,4 @@
+import sys
 import os
 import stat
 import time
@@ -336,3 +337,57 @@ def test_result_of_a_finished_update_is_shown_once(catalog, tmp_path, gh):
     assert m.status()["last_result"]["ok"] is True
     m.ack_result()
     assert m.status()["last_result"] is None
+
+
+# ------------------------------------------------------------------------------- signature of SHA256SUMS.txt
+def _keypair(tmp_path):
+    import shutil
+    import subprocess
+    if not shutil.which("openssl"):
+        pytest.skip("openssl not installed")
+    pem = tmp_path / "k.pem"
+    subprocess.run(["openssl", "genpkey", "-algorithm", "ED25519", "-out", str(pem)], check=True)
+    pub = subprocess.run(["openssl", "pkey", "-in", str(pem), "-pubout", "-outform", "DER"], check=True, capture_output=True).stdout[-32:].hex()
+    return pem, pub
+
+
+def _sign(tmp_path, pem, text):
+    import subprocess
+    f = tmp_path / "SHA256SUMS.txt"
+    f.write_text(text)
+    subprocess.run([sys.executable, str(Path(__file__).resolve().parents[2] / "scripts" / "sign_sums.py"), str(f), str(pem)], check=True)
+    return (tmp_path / "SHA256SUMS.txt.sig").read_text()
+
+
+def test_signed_release_installs_when_a_key_is_embedded(catalog, tmp_path, gh, monkeypatch):
+    from race_engineer.updater import signing
+    pem, pub = _keypair(tmp_path)
+    gh.sig = _sign(tmp_path, pem, gh.sums)
+    monkeypatch.setattr(signing, "PUBLIC_KEY_HEX", pub)
+    m = manager(catalog, gh, tmp_path)
+    m.check(); m.start_install()
+    assert wait_done(m)["state"] == "restarting" and m.calls
+
+
+@pytest.mark.parametrize("case", ["missing", "wrong_key", "tampered_sums"])
+def test_unsigned_or_badly_signed_release_is_refused_when_a_key_is_embedded(catalog, tmp_path, gh, monkeypatch, case):
+    from race_engineer.updater import signing
+    pem, pub = _keypair(tmp_path)
+    good = _sign(tmp_path, pem, gh.sums)
+    monkeypatch.setattr(signing, "PUBLIC_KEY_HEX", pub)
+    if case == "wrong_key":
+        monkeypatch.setattr(signing, "PUBLIC_KEY_HEX", "11" * 32)
+        gh.sig = good
+    elif case == "tampered_sums":
+        gh.sig = good
+        gh.sums = gh.sums + "\n"            # attacker edits the checksum list but cannot re-sign it
+    m = manager(catalog, gh, tmp_path)
+    m.check(); m.start_install()
+    st = wait_done(m)
+    assert st["state"] == "error" and st["error_code"] == "bad_signature" and not m.calls
+
+
+def test_without_embedded_key_signature_is_not_required(catalog, tmp_path, gh):
+    m = manager(catalog, gh, tmp_path)
+    m.check(); m.start_install()
+    assert wait_done(m)["state"] == "restarting"

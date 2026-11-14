@@ -62,3 +62,6 @@ rimanda alla pagina di download (nessun tentativo di installare).
 `backend/tests/test_updater.py` (31 test con un finto GitHub su HTTP reale), `backend/tests/test_sims_and_updates_api.py`,
 `scripts/e2e_home_update.py` (browser reale, 38 controlli), `scripts/test_updater_bundle.py` (processo updater reale: attesa, sostituzione, rollback;
 eseguito in CI su Windows con l'exe congelato). Vedi CHANGELOG 0.7.0 per cosa è stato davvero eseguito e cosa no.
+
+## Firma dei checksum (opzionale, da attivare)
+Vedi `docs/RELEASE.md`. Con `PUBLIC_KEY_HEX` vuoto (stato attuale) l'app verifica solo SHA-256: protegge da file corrotti, **non** da chi può modificare la release. Con la chiave inserita, `SHA256SUMS.txt.sig` (Ed25519) è obbligatoria e una release senza firma valida viene rifiutata (`bad_signature`).

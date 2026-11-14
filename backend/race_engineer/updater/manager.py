@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Callable
 
 from . import apply as apply_mod
-from . import source
+from . import signing, source
 from .source import PACKAGE_NAME, SUMS_NAME, Policy, Release, UpdateError
 from .versions import fmt, parse_loose
 
@@ -200,7 +200,18 @@ class UpdateManager:
         if free_bytes(folder) < need:
             raise UpdateError("no_space", f"Spazio su disco insufficiente: servono circa {need // 1_000_000} MB liberi. Libera spazio e riprova: l'app non è stata modificata.")
         # ---- checksum list from the SAME release
-        sums = source.parse_sums(source.read_small(rel.assets[SUMS_NAME]["url"], self.policy))
+        sums_text = source.read_small(rel.assets[SUMS_NAME]["url"], self.policy)
+        if signing.enforced():                                    # a public key is embedded: the checksum list must carry the maintainer's signature
+            sig = rel.assets.get(signing.SIG_NAME)
+            sig_text = None
+            if sig:
+                try:
+                    sig_text = source.read_small(sig["url"], self.policy)
+                except UpdateError:                              # listed but not downloadable = no signature
+                    sig_text = None
+            if not signing.check_sums(sums_text, sig_text):
+                raise UpdateError("bad_signature", "La release non ha una firma valida del progetto: per sicurezza non la installo.")
+        sums = source.parse_sums(sums_text)
         want = sums.get(PACKAGE_NAME[self.platform])
         if not want:
             raise UpdateError("no_checksum", "La release non contiene il codice di controllo del pacchetto: per sicurezza non lo installo.")

@@ -1,6 +1,7 @@
 name: release
 # Manual: publishes the Windows files built by a CI run as a GitHub pre-release.
-# It re-verifies SHA256SUMS.txt before publishing. It does not build or change anything else.
+# It re-verifies the run, the commit, the version/tag match and SHA256SUMS.txt, signs the checksum list (if the signing secret exists)
+# and only then publishes. It never builds anything. NOTHING is published unless a person starts this workflow by hand.
 on:
   workflow_dispatch:
     inputs:
@@ -17,32 +18,61 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
+      - uses: actions/checkout@v4
+        with: { ref: "${{ inputs.commit }}" }
+      - name: Check that the run is green and was built from this commit
+        env: { RUN_ID: "${{ inputs.run_id }}", COMMIT: "${{ inputs.commit }}", REPO: "${{ github.repository }}" }
+        run: |
+          read -r concl sha < <(gh api "repos/$REPO/actions/runs/$RUN_ID" --jq '[.conclusion,.head_sha]|@tsv')
+          echo "run $RUN_ID: conclusion=$concl head_sha=$sha"
+          [ "$concl" = "success" ] || { echo "The CI run is not green: refusing to publish."; exit 1; }
+          [ "$sha" = "$(git rev-parse HEAD)" ] || { echo "The run was built from another commit than '$COMMIT': refusing."; exit 1; }
       - name: Download CI artifact
-        run: gh run download "${{ inputs.run_id }}" --repo "${{ github.repository }}" -n RaceEngineerAI-windows -D dist
-      - name: Verify checksums
-        run: cd dist && sha256sum -c SHA256SUMS.txt && ls -l
-      - name: Create pre-release
+        env: { RUN_ID: "${{ inputs.run_id }}", REPO: "${{ github.repository }}" }
+        run: gh run download "$RUN_ID" --repo "$REPO" -n RaceEngineerAI-windows -D dist
+      - name: Verify checksums and that the version inside the package matches the tag
+        env: { TAG: "${{ inputs.tag }}" }
+        run: |
+          cd dist && sha256sum -c SHA256SUMS.txt && ls -l
+          unzip -p RaceEngineerAI-win32.zip build_info.json > /tmp/bi.json
+          pkg=$(python3 -c "import json;print(json.load(open('/tmp/bi.json')).get('version',''))")
+          base="${TAG#v}"; base="${base%%-*}"
+          echo "package version=$pkg tag=$TAG"
+          [ "$pkg" = "$base" ] || { echo "The package version ($pkg) does not match the tag ($TAG): refusing."; exit 1; }
+      - name: Sign SHA256SUMS.txt (Ed25519)
+        env: { KEY_PEM: "${{ secrets.RELEASE_SIGNING_KEY_PEM }}" }
+        run: |
+          if [ -n "$KEY_PEM" ]; then
+            printf '%s\n' "$KEY_PEM" > "$RUNNER_TEMP/key.pem"
+            python3 scripts/sign_sums.py dist/SHA256SUMS.txt "$RUNNER_TEMP/key.pem"
+            shred -u "$RUNNER_TEMP/key.pem" || rm -f "$RUNNER_TEMP/key.pem"
+          elif python3 -c "import re,sys;sys.exit(0 if re.search(r'^PUBLIC_KEY_HEX\s*=\s*\"[0-9a-fA-F]{64}\"', open('backend/race_engineer/updater/signing.py').read(), re.M) else 1)"; then
+            echo "The app embeds a public key but the secret RELEASE_SIGNING_KEY_PEM is missing: installed apps would refuse this release. Refusing."; exit 1
+          else
+            echo "No signing key configured: the release will carry SHA-256 only (the app does not require a signature yet)."
+          fi
+      - name: Create release
+        env: { TAG: "${{ inputs.tag }}", COMMIT: "${{ inputs.commit }}", RUN_ID: "${{ inputs.run_id }}", STABLE: "${{ inputs.stable }}", REPO: "${{ github.repository }}" }
         run: |
           cd dist
           cat > notes.md <<NOTES
-          Build Windows prodotta dalla CI (run ${{ inputs.run_id }}, commit ${{ inputs.commit }}). Checksum verificati prima della pubblicazione.
+          Build Windows prodotta dalla CI (run $RUN_ID, commit $COMMIT). Checksum verificati prima della pubblicazione.
 
           **Stato di verifica:** testata in CI su Windows con dati SINTETICI. NON ancora verificata con Le Mans Ultimate reale.
 
-          - RaceEngineerAI-win32.zip: versione portatile, estrai e avvia RaceEngineerAI.exe
+          - RaceEngineerAI-win32.zip: versione portatile, estrai e avvia RaceEngineerAI.exe (usata anche dall'aggiornamento automatico)
           - RaceEngineerAI-Setup-*.exe: installer
-          - SHA256SUMS.txt
+          - SHA256SUMS.txt (+ SHA256SUMS.txt.sig se presente: firma Ed25519 della lista)
 
           $(cat SIGNING.txt 2>/dev/null || echo "Eseguibili NON firmati: Windows SmartScreen puo mostrare un avviso.")
-          Procedura di test: docs/UNIFIED_DRIVING_DISPLAY.md sezione 11.2.
+          Procedura di test: docs/LMU-TEST-REALE.md.
           NOTES
-          if [ "${{ inputs.stable }}" = "true" ]; then
-            echo "${{ inputs.tag }}" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$' || { echo "A stable tag must look like v1.2.3"; exit 1; }
-            KIND="--latest"; TITLE="${{ inputs.tag }}"
+          if [ "$STABLE" = "true" ]; then
+            echo "$TAG" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$' || { echo "A stable tag must look like v1.2.3"; exit 1; }
+            KIND="--latest"; TITLE="$TAG"
           else
-            KIND="--prerelease"; TITLE="${{ inputs.tag }} (Windows, test con LMU)"
+            KIND="--prerelease"; TITLE="$TAG (Windows, test con LMU)"
           fi
+          FILES="RaceEngineerAI-win32.zip SHA256SUMS.txt"; for f in RaceEngineerAI-Setup-*.exe SHA256SUMS.txt.sig; do [ -f "$f" ] && FILES="$FILES $f"; done
           # SHA256SUMS.txt and RaceEngineerAI-win32.zip are what the in-app updater verifies: both must be assets of the release
-          gh release create "${{ inputs.tag }}" --repo "${{ github.repository }}" --target "${{ inputs.commit }}" $KIND \
-            --title "$TITLE" --notes-file notes.md \
-            RaceEngineerAI-win32.zip RaceEngineerAI-Setup-*.exe SHA256SUMS.txt
+          gh release create "$TAG" --repo "$REPO" --target "$COMMIT" $KIND --title "$TITLE" --notes-file notes.md $FILES

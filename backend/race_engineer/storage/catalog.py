@@ -87,6 +87,17 @@ MIGRATIONS: list[tuple[int, str]] = [
     CREATE INDEX idx_sessions_sim ON sessions(sim, started_at);
     ALTER TABLE goals ADD COLUMN sim TEXT NOT NULL DEFAULT 'lmu';
     """),
+    (7, """
+    -- every per-simulator memory carries its simulator (existing rows = Le Mans Ultimate). Columns only: no row is rewritten or removed.
+    -- NOTE: the primary keys of coach_habits / track_profiles do not contain `sim` yet; they must be rebuilt (with a backup) in the
+    -- migration that enables a SECOND simulator, together with scoping the Coach queries (see docs/SIMULATORS.md, "Architettura").
+    ALTER TABLE coach_tips ADD COLUMN sim TEXT NOT NULL DEFAULT 'lmu';
+    ALTER TABLE coach_habits ADD COLUMN sim TEXT NOT NULL DEFAULT 'lmu';
+    ALTER TABLE coach_laps ADD COLUMN sim TEXT NOT NULL DEFAULT 'lmu';
+    ALTER TABLE setups ADD COLUMN sim TEXT NOT NULL DEFAULT 'lmu';
+    ALTER TABLE track_profiles ADD COLUMN sim TEXT NOT NULL DEFAULT 'lmu';
+    ALTER TABLE messages ADD COLUMN sim TEXT NOT NULL DEFAULT 'lmu';
+    """),
 ]
 
 
@@ -166,7 +177,7 @@ class Catalog:
     def put_track_profile(self, track: str, corners: list[dict], layout: str = "") -> None:
         import json
         with self.db:
-            self.db.execute("INSERT INTO track_profiles VALUES (?,?,?,?) ON CONFLICT(track,layout) DO UPDATE SET "
+            self.db.execute("INSERT INTO track_profiles(track,layout,corners_json,updated_at) VALUES (?,?,?,?) ON CONFLICT(track,layout) DO UPDATE SET "
                             "corners_json=excluded.corners_json, updated_at=excluded.updated_at",
                             (track, layout, json.dumps(corners), time.time()))
 
